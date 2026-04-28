@@ -78,6 +78,9 @@
         if (coreColumnIndex >= 0) {
             localizeCoreColumnHeader($table, coreColumnIndex);
             setColumnVisibility($table, coreColumnIndex, enabled);
+            if (enabled) {
+                fetchColumnData($table, coreColumnIndex);
+            }
             return;
         }
 
@@ -87,7 +90,7 @@
         }
 
         ensurePluginColumn($table);
-        fetchPluginColumnData($table);
+        fetchColumnData($table, findColumnIndex($table, PLUGIN_COLUMN_ID));
     }
 
     function findColumnIndex($table, searchOptionId) {
@@ -159,7 +162,11 @@
         });
     }
 
-    function fetchPluginColumnData($table) {
+    function fetchColumnData($table, columnIndex) {
+        if (columnIndex < 0) {
+            return;
+        }
+
         var ids = [];
         var rowMap = {};
 
@@ -170,7 +177,12 @@
             }
 
             var ticketId = extractTicketId($row);
-            var $cell = $row.children().last();
+            var $cells = $row.children();
+            if ($cells.length <= columnIndex) {
+                return;
+            }
+
+            var $cell = $cells.eq(columnIndex);
             if (!ticketId) {
                 $cell.html("<span class='text-muted'>-</span>");
                 return;
