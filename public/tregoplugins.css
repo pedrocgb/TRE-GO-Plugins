@@ -1,0 +1,13 @@
+.tregoplugins-ola-progress-toolbar .form-check-label {
+    cursor: pointer;
+}
+
+.tregoplugins-ola-progress-cell,
+.tregoplugins-ola-progress-cell-wrapper {
+    min-width: 220px;
+}
+
+.tregoplugins-ola-progress-cell .progress {
+    min-width: 180px;
+    margin-top: 0.25rem;
+}

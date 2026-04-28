@@ -9,8 +9,10 @@ class PluginTregopluginsCategoryConfig
     public const LEGACY_FORM_FIELD = 'plugin_tregoplugins_solutiontemplates_id';
     public const FORM_FIELD_REQUEST = 'plugin_tregoplugins_solutiontemplates_id_request';
     public const FORM_FIELD_INCIDENT = 'plugin_tregoplugins_solutiontemplates_id_incident';
+    public const FORM_FIELD_AUTO_LINK_KB = 'plugin_tregoplugins_auto_link_knowbase';
 
     private const LEGACY_DB_FIELD = 'solutiontemplates_id';
+    private const DB_FIELD_AUTO_LINK_KB = 'auto_link_knowbase';
 
     private static bool $schema_checked = false;
 
@@ -53,6 +55,9 @@ class PluginTregopluginsCategoryConfig
         $incident_template_id = self::normalizeTemplateId(
             $item->input[self::FORM_FIELD_INCIDENT] ?? $item->input[self::LEGACY_FORM_FIELD] ?? 0
         );
+        $auto_link_knowbase = self::normalizeBoolean(
+            $item->input[self::FORM_FIELD_AUTO_LINK_KB] ?? self::getDefaultSettings()['auto_link_knowbase']
+        );
 
         if ($request_template_id > 0 && !self::solutionTemplateExists($request_template_id)) {
             $request_template_id = 0;
@@ -62,12 +67,21 @@ class PluginTregopluginsCategoryConfig
             $incident_template_id = 0;
         }
 
-        if ($request_template_id <= 0 && $incident_template_id <= 0) {
+        if (
+            $request_template_id <= 0
+            && $incident_template_id <= 0
+            && $auto_link_knowbase === self::getDefaultSettings()['auto_link_knowbase']
+        ) {
             self::deleteForCategoryId($category_id);
             return;
         }
 
-        self::persist($category_id, $request_template_id, $incident_template_id);
+        self::persist(
+            $category_id,
+            $request_template_id,
+            $incident_template_id,
+            $auto_link_knowbase
+        );
     }
 
     public static function deleteForCategory(CommonDBTM $item): void
@@ -81,21 +95,30 @@ class PluginTregopluginsCategoryConfig
 
     public static function getSolutionTemplateIdsForCategory(int $category_id): array
     {
+        $settings = self::getCategorySettings($category_id);
+
+        return [
+            'request'  => $settings['request'],
+            'incident' => $settings['incident'],
+        ];
+    }
+
+    public static function getCategorySettings(int $category_id): array
+    {
         global $DB;
 
         self::ensureSchema();
 
+        $defaults = self::getDefaultSettings();
         if ($category_id <= 0 || !$DB->tableExists(self::TABLE)) {
-            return [
-                'request'  => 0,
-                'incident' => 0,
-            ];
+            return $defaults;
         }
 
         $iterator = $DB->request([
             'SELECT' => [
                 'solutiontemplates_id_request',
                 'solutiontemplates_id_incident',
+                self::DB_FIELD_AUTO_LINK_KB,
             ],
             'FROM'   => self::TABLE,
             'WHERE'  => ['itilcategories_id' => $category_id],
@@ -103,17 +126,17 @@ class PluginTregopluginsCategoryConfig
         ]);
 
         if (count($iterator) === 0) {
-            return [
-                'request'  => 0,
-                'incident' => 0,
-            ];
+            return $defaults;
         }
 
         $row = $iterator->current();
 
         return [
-            'request'  => (int) ($row['solutiontemplates_id_request'] ?? 0),
-            'incident' => (int) ($row['solutiontemplates_id_incident'] ?? 0),
+            'request'            => (int) ($row['solutiontemplates_id_request'] ?? 0),
+            'incident'           => (int) ($row['solutiontemplates_id_incident'] ?? 0),
+            'auto_link_knowbase' => self::normalizeBoolean(
+                $row[self::DB_FIELD_AUTO_LINK_KB] ?? $defaults['auto_link_knowbase']
+            ),
         ];
     }
 
@@ -133,6 +156,18 @@ class PluginTregopluginsCategoryConfig
         };
     }
 
+    public static function shouldAutoLinkKnowbase(Ticket $ticket): bool
+    {
+        $category_id = (int) ($ticket->fields['itilcategories_id'] ?? 0);
+        if ($category_id <= 0) {
+            return false;
+        }
+
+        $settings = self::getCategorySettings($category_id);
+
+        return $settings['auto_link_knowbase'];
+    }
+
     private static function deleteForCategoryId(int $category_id): void
     {
         global $DB;
@@ -149,7 +184,8 @@ class PluginTregopluginsCategoryConfig
     private static function persist(
         int $category_id,
         int $request_template_id,
-        int $incident_template_id
+        int $incident_template_id,
+        bool $auto_link_knowbase
     ): void {
         global $DB;
 
@@ -167,6 +203,7 @@ class PluginTregopluginsCategoryConfig
         $values = [
             'solutiontemplates_id_request'  => $request_template_id,
             'solutiontemplates_id_incident' => $incident_template_id,
+            self::DB_FIELD_AUTO_LINK_KB     => (int) $auto_link_knowbase,
             'date_mod'                      => $now,
         ];
 
@@ -189,6 +226,19 @@ class PluginTregopluginsCategoryConfig
         }
 
         return max(0, (int) $value);
+    }
+
+    private static function normalizeBoolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return !in_array(strtolower($value), ['0', 'false', 'off', 'no'], true);
+        }
+
+        return (int) $value > 0;
     }
 
     private static function solutionTemplateExists(int $solution_template_id): bool
@@ -222,6 +272,7 @@ class PluginTregopluginsCategoryConfig
                 `itilcategories_id` int {$default_key_sign} NOT NULL DEFAULT '0',
                 `solutiontemplates_id_request` int {$default_key_sign} NOT NULL DEFAULT '0',
                 `solutiontemplates_id_incident` int {$default_key_sign} NOT NULL DEFAULT '0',
+                `" . self::DB_FIELD_AUTO_LINK_KB . "` tinyint NOT NULL DEFAULT '1',
                 `date_creation` timestamp NULL DEFAULT NULL,
                 `date_mod` timestamp NULL DEFAULT NULL,
                 PRIMARY KEY (`id`),
@@ -248,6 +299,13 @@ class PluginTregopluginsCategoryConfig
             );
         }
 
+        if (!$DB->fieldExists(self::TABLE, self::DB_FIELD_AUTO_LINK_KB)) {
+            $DB->doQueryOrDie(
+                "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `" . self::DB_FIELD_AUTO_LINK_KB . "` tinyint NOT NULL DEFAULT '1'",
+                'Add knowledge base auto-link column'
+            );
+        }
+
         if ($DB->fieldExists(self::TABLE, self::LEGACY_DB_FIELD)) {
             $DB->doQueryOrDie(
                 "UPDATE `" . self::TABLE . "`
@@ -263,5 +321,14 @@ class PluginTregopluginsCategoryConfig
                 'Migrate legacy solution template column'
             );
         }
+    }
+
+    private static function getDefaultSettings(): array
+    {
+        return [
+            'request'            => 0,
+            'incident'           => 0,
+            'auto_link_knowbase' => true,
+        ];
     }
 }

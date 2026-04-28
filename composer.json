@@ -1,6 +1,6 @@
 {
     "name": "trego/glpi-itil-category-automation",
-    "description": "GLPI 10.x plugin for ITIL category knowledge base linking and solution template automation.",
+    "description": "GLPI 10.x plugin for ITIL category knowledge base automation, solution templates and OLA visibility.",
     "type": "glpi-plugin",
     "require": {
         "php": ">=8.2"

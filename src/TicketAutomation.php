@@ -11,6 +11,10 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
+        if (!PluginTregopluginsCategoryConfig::shouldAutoLinkKnowbase($item)) {
+            return;
+        }
+
         $knowbase_item_id = self::resolveDefaultKnowbaseItemId($item);
         if ($knowbase_item_id <= 0) {
             return;

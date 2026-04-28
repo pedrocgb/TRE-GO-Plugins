@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '1.0.2');
+define('PLUGIN_TREGOPLUGINS_VERSION', '1.1.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -40,6 +40,7 @@ define('PLUGIN_TREGOPLUGINS_MAX_GLPI_VERSION', '11.0.0');
 
 require_once __DIR__ . '/src/CategoryConfig.php';
 require_once __DIR__ . '/src/CategoryForm.php';
+require_once __DIR__ . '/src/OlaProgressService.php';
 require_once __DIR__ . '/src/SolutionForm.php';
 require_once __DIR__ . '/src/TicketAutomation.php';
 
@@ -51,6 +52,9 @@ function plugin_init_tregoplugins(): void
     global $PLUGIN_HOOKS;
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::CSRF_COMPLIANT]['tregoplugins'] = true;
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['tregoplugins'] = 'public/tregoplugins.css';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['tregoplugins']
+        = 'public/tregoplugins-ticket-list.js';
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_add';
@@ -117,7 +121,7 @@ function plugin_tregoplugins_on_itilcategory_purge(CommonDBTM $item): void
 function plugin_version_tregoplugins(): array
 {
     return [
-        'name'         => 'TRE-GO ITIL Category Automation',
+        'name'         => 'Automacao TRE-GO para Categorias ITIL',
         'version'      => PLUGIN_TREGOPLUGINS_VERSION,
         'author'       => 'Pedro Henrique Cesar',
         'license'      => 'MIT',
@@ -138,7 +142,7 @@ function plugin_tregoplugins_check_prerequisites(): bool
         || version_compare(GLPI_VERSION, PLUGIN_TREGOPLUGINS_MAX_GLPI_VERSION, 'ge')
     ) {
         echo sprintf(
-            'This plugin requires GLPI >= %s and < %s.',
+            'Este plugin requer GLPI >= %s e < %s.',
             PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION,
             PLUGIN_TREGOPLUGINS_MAX_GLPI_VERSION
         );
