@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '1.0.1');
+define('PLUGIN_TREGOPLUGINS_VERSION', '1.0.2');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -63,7 +63,7 @@ function plugin_init_tregoplugins(): void
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['ITILCategory']
         = 'plugin_tregoplugins_on_itilcategory_save';
-    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_UPDATE]['tregoplugins']['ITILCategory']
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_UPDATE]['tregoplugins']['ITILCategory']
         = 'plugin_tregoplugins_on_itilcategory_save';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_PURGE]['tregoplugins']['ITILCategory']
         = 'plugin_tregoplugins_on_itilcategory_purge';
