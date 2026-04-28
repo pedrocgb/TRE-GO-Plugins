@@ -213,13 +213,26 @@
             return parseInt(checkboxMatch[1], 10);
         }
 
-        var href = $row.find("a[href*='ticket.form.php']").first().attr('href') || '';
-        if (!href) {
-            return 0;
-        }
+        var ticketId = 0;
+        $row.find('a[href]').each(function () {
+            var href = $(this).attr('href') || '';
+            if (!href || href.indexOf('ticket.form.php') === -1) {
+                return;
+            }
 
-        var url = new URL(href, window.location.origin);
-        return parseInt(url.searchParams.get('id') || '0', 10);
+            try {
+                var url = new URL(href, window.location.origin);
+                var id = parseInt(url.searchParams.get('id') || '0', 10);
+                if (id > 0) {
+                    ticketId = id;
+                    return false;
+                }
+            } catch (error) {
+                return;
+            }
+        });
+
+        return ticketId;
     }
 
     $(function () {

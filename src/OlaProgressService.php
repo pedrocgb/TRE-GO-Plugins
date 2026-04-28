@@ -7,23 +7,12 @@ class PluginTregopluginsOlaProgressService
 {
     public static function renderProgressCell(Ticket $ticket): string
     {
-        $due_date = (string) ($ticket->fields['internal_time_to_own'] ?? '');
-        if ($due_date === '') {
+        $due_date = self::resolveDueDate($ticket);
+        if ($due_date === null) {
             return '';
         }
 
         $due_date_label = Html::convDateTime($due_date);
-        if (
-            self::isClosedStatus((int) ($ticket->fields['status'] ?? 0))
-            || (int) ($ticket->fields['takeintoaccount_delay_stat'] ?? 0) > 0
-        ) {
-            return self::renderCellMarkup($due_date_label);
-        }
-
-        $color = null;
-        if ((int) ($ticket->fields['status'] ?? 0) === CommonITILObject::WAITING) {
-            $color = '#AAAAAA';
-        }
 
         $timing = self::computeActiveTimes($ticket, $due_date);
         if ($timing === null) {
@@ -36,13 +25,7 @@ class PluginTregopluginsOlaProgressService
             $timing['waitingtime']
         );
 
-        if ($color === null) {
-            $color = self::resolveProgressColor(
-                $percentage,
-                $timing['totaltime'],
-                $timing['currenttime']
-            );
-        }
+        $color = self::resolveProgressColor($percentage);
 
         return self::renderCellMarkup($due_date_label, $percentage, $color);
     }
@@ -53,12 +36,12 @@ class PluginTregopluginsOlaProgressService
      */
     private static function computeActiveTimes(Ticket $ticket, string $due_date): ?array
     {
-        $opening_date = (string) ($ticket->fields['date'] ?? '');
-        if ($opening_date === '') {
+        $start_date = self::resolveStartDate($ticket);
+        if ($start_date === null) {
             return null;
         }
 
-        $current_date = date('Y-m-d H:i:s');
+        $current_date = self::resolveProgressEndDate($ticket);
         $currenttime = 0;
         $totaltime = 0;
         $waitingtime = 0;
@@ -67,8 +50,9 @@ class PluginTregopluginsOlaProgressService
         if ($ola_id > 0) {
             $ola = new OLA();
             if ($ola->getFromDB($ola_id)) {
-                $currenttime = $ola->getActiveTimeBetween($opening_date, $current_date);
-                $totaltime = $ola->getActiveTimeBetween($opening_date, $due_date);
+                $ola->setTicketCalendar((int) ($ticket->getCalendar(SLM::TTO) ?? 0));
+                $currenttime = $ola->getActiveTimeBetween($start_date, $current_date);
+                $totaltime = $ola->getActiveTimeBetween($start_date, $due_date);
             }
         }
 
@@ -82,11 +66,11 @@ class PluginTregopluginsOlaProgressService
 
             $calendar = new Calendar();
             if ($calendar_id > 0 && $calendar->getFromDB($calendar_id)) {
-                $currenttime = $calendar->getActiveTimeBetween($opening_date, $current_date);
-                $totaltime = $calendar->getActiveTimeBetween($opening_date, $due_date);
+                $currenttime = $calendar->getActiveTimeBetween($start_date, $current_date);
+                $totaltime = $calendar->getActiveTimeBetween($start_date, $due_date);
             } else {
-                $currenttime = strtotime($current_date) - strtotime($opening_date);
-                $totaltime = strtotime($due_date) - strtotime($opening_date);
+                $currenttime = strtotime($current_date) - strtotime($start_date);
+                $totaltime = strtotime($due_date) - strtotime($start_date);
             }
         }
 
@@ -113,47 +97,21 @@ class PluginTregopluginsOlaProgressService
         return min(100, max(0, $percentage));
     }
 
-    private static function resolveProgressColor(
-        int $percentage,
-        int $totaltime,
-        int $currenttime
-    ): string {
-        $less_warn_limit = 0;
-        $less_warn = 0;
-        if (($_SESSION['glpiduedatewarning_unit'] ?? '') === '%') {
-            $less_warn_limit = (int) ($_SESSION['glpiduedatewarning_less'] ?? 0);
-            $less_warn = 100 - $percentage;
-        } elseif (($_SESSION['glpiduedatewarning_unit'] ?? '') === 'hour') {
-            $less_warn_limit = (int) ($_SESSION['glpiduedatewarning_less'] ?? 0) * HOUR_TIMESTAMP;
-            $less_warn = $totaltime - $currenttime;
-        } elseif (($_SESSION['glpiduedatewarning_unit'] ?? '') === 'day') {
-            $less_warn_limit = (int) ($_SESSION['glpiduedatewarning_less'] ?? 0) * DAY_TIMESTAMP;
-            $less_warn = $totaltime - $currenttime;
+    private static function resolveProgressColor(int $percentage): string
+    {
+        if ($percentage >= 100) {
+            return '#d63939';
         }
 
-        $less_crit_limit = 0;
-        $less_crit = 0;
-        if (($_SESSION['glpiduedatecritical_unit'] ?? '') === '%') {
-            $less_crit_limit = (int) ($_SESSION['glpiduedatecritical_less'] ?? 0);
-            $less_crit = 100 - $percentage;
-        } elseif (($_SESSION['glpiduedatecritical_unit'] ?? '') === 'hour') {
-            $less_crit_limit = (int) ($_SESSION['glpiduedatecritical_less'] ?? 0) * HOUR_TIMESTAMP;
-            $less_crit = $totaltime - $currenttime;
-        } elseif (($_SESSION['glpiduedatecritical_unit'] ?? '') === 'day') {
-            $less_crit_limit = (int) ($_SESSION['glpiduedatecritical_less'] ?? 0) * DAY_TIMESTAMP;
-            $less_crit = $totaltime - $currenttime;
+        if ($percentage >= 75) {
+            return '#fd7e14';
         }
 
-        $ok_color = (string) ($_SESSION['glpiduedateok_color'] ?? '#2fb344');
-        if ($less_crit < $less_crit_limit) {
-            return (string) ($_SESSION['glpiduedatecritical_color'] ?? '#d63939');
+        if ($percentage >= 50) {
+            return '#f7c948';
         }
 
-        if ($less_warn < $less_warn_limit) {
-            return (string) ($_SESSION['glpiduedatewarning_color'] ?? '#de5d06');
-        }
-
-        return $ok_color;
+        return '#2fb344';
     }
 
     private static function renderCellMarkup(
@@ -182,5 +140,63 @@ HTML;
     private static function isClosedStatus(int $status): bool
     {
         return in_array($status, [Ticket::SOLVED, Ticket::CLOSED], true);
+    }
+
+    private static function resolveDueDate(Ticket $ticket): ?string
+    {
+        $due_date = trim((string) ($ticket->fields['internal_time_to_own'] ?? ''));
+        if ($due_date !== '') {
+            return $due_date;
+        }
+
+        $ola_id = (int) ($ticket->fields['olas_id_tto'] ?? 0);
+        if ($ola_id <= 0) {
+            return null;
+        }
+
+        $start_date = self::resolveStartDate($ticket);
+        if ($start_date === null) {
+            return null;
+        }
+
+        $ola = new OLA();
+        if (!$ola->getFromDB($ola_id)) {
+            return null;
+        }
+
+        $ola->setTicketCalendar((int) ($ticket->getCalendar(SLM::TTO) ?? 0));
+
+        return $ola->computeDate(
+            $start_date,
+            (int) ($ticket->fields['ola_waiting_duration'] ?? 0)
+        );
+    }
+
+    private static function resolveStartDate(Ticket $ticket): ?string
+    {
+        $start_date = trim((string) ($ticket->fields['ola_tto_begin_date'] ?? ''));
+        if ($start_date !== '') {
+            return $start_date;
+        }
+
+        $opening_date = trim((string) ($ticket->fields['date'] ?? ''));
+
+        return $opening_date !== '' ? $opening_date : null;
+    }
+
+    private static function resolveProgressEndDate(Ticket $ticket): string
+    {
+        $takeintoaccount_date = trim((string) ($ticket->fields['takeintoaccountdate'] ?? ''));
+        if ($takeintoaccount_date !== '') {
+            return $takeintoaccount_date;
+        }
+
+        $delay = (int) ($ticket->fields['takeintoaccount_delay_stat'] ?? 0);
+        $opening_date = trim((string) ($ticket->fields['date'] ?? ''));
+        if ($delay > 0 && $opening_date !== '') {
+            return date('Y-m-d H:i:s', strtotime($opening_date) + $delay);
+        }
+
+        return date('Y-m-d H:i:s');
     }
 }
