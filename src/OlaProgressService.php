@@ -7,16 +7,20 @@ class PluginTregopluginsOlaProgressService
 {
     public static function renderProgressCell(Ticket $ticket): string
     {
+        if ((int) ($ticket->fields['olas_id_tto'] ?? 0) <= 0) {
+            return self::renderInfoCell('Sem OLA TTO');
+        }
+
         $due_date = self::resolveDueDate($ticket);
         if ($due_date === null) {
-            return '';
+            return self::renderInfoCell('OLA TTO sem prazo');
         }
 
         $due_date_label = Html::convDateTime($due_date);
 
         $timing = self::computeActiveTimes($ticket, $due_date);
         if ($timing === null) {
-            return self::renderCellMarkup($due_date_label);
+            return self::renderInfoCell('OLA TTO sem inicio');
         }
 
         $percentage = self::computePercent(
@@ -135,6 +139,11 @@ class PluginTregopluginsOlaProgressService
    </div>
 </div>
 HTML;
+    }
+
+    private static function renderInfoCell(string $message): string
+    {
+        return "<div class='tregoplugins-ola-progress-cell'><span class='text-muted'>{$message}</span></div>";
     }
 
     private static function isClosedStatus(int $status): bool
