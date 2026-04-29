@@ -62,7 +62,7 @@ function plugin_init_tregoplugins(): void
     ];
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['tregoplugins']
         = 'public/tregoplugins-ticket-list.js';
-    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::MENU_TOADD]['tregoplugins'] = [
+    $PLUGIN_HOOKS['menu_toadd']['tregoplugins'] = [
         'management' => [PluginTregopluginsOlaReport::class],
     ];
 
@@ -73,13 +73,13 @@ function plugin_init_tregoplugins(): void
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_add';
-    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_UPDATE]['tregoplugins']['Ticket']
+    $PLUGIN_HOOKS['item_update']['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_update';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_UPDATE]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_pre_update';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Group_Ticket']
         = 'plugin_tregoplugins_on_ticket_group_add';
-    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_UPDATE]['tregoplugins']['Group_Ticket']
+    $PLUGIN_HOOKS['item_update']['tregoplugins']['Group_Ticket']
         = 'plugin_tregoplugins_on_ticket_group_update';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket_User']
         = 'plugin_tregoplugins_on_ticket_assigned_actor_add';
