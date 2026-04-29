@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '2.0.1');
+define('PLUGIN_TREGOPLUGINS_VERSION', '2.0.2');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -148,6 +148,40 @@ function plugin_tregoplugins_on_itilcategory_save(CommonDBTM $item): void
 function plugin_tregoplugins_on_itilcategory_purge(CommonDBTM $item): void
 {
     PluginTregopluginsCategoryConfig::deleteForCategory($item);
+}
+
+if (!function_exists('plugin_tregoplugins_install')) {
+    function plugin_tregoplugins_install($params = []): bool
+    {
+        return plugin_tregoplugins_do_install();
+    }
+}
+
+if (!function_exists('plugin_tregoplugins_uninstall')) {
+    function plugin_tregoplugins_uninstall(): bool
+    {
+        return plugin_tregoplugins_do_uninstall();
+    }
+}
+
+function plugin_tregoplugins_do_install(): bool
+{
+    PluginTregopluginsCategoryConfig::install();
+    PluginTregopluginsOlaBusinessTimeService::install();
+    PluginTregopluginsOlaReportRepository::install();
+    PluginTregopluginsOlaReport::installRights();
+
+    return true;
+}
+
+function plugin_tregoplugins_do_uninstall(): bool
+{
+    PluginTregopluginsOlaReport::uninstallRights();
+    PluginTregopluginsOlaReportRepository::uninstall();
+    PluginTregopluginsOlaBusinessTimeService::uninstall();
+    PluginTregopluginsCategoryConfig::uninstall();
+
+    return true;
 }
 
 /**
