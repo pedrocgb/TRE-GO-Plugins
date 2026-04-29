@@ -11,7 +11,7 @@ require_once __DIR__ . '/src/OlaBusinessTimeService.php';
 require_once __DIR__ . '/src/OlaReport.php';
 require_once __DIR__ . '/src/OlaReportRepository.php';
 
-function plugin_tregoplugins_install(): bool
+function plugin_tregoplugins_install($params = []): bool
 {
     PluginTregopluginsCategoryConfig::install();
     PluginTregopluginsOlaBusinessTimeService::install();

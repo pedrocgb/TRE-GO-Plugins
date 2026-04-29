@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '2.0.0');
+define('PLUGIN_TREGOPLUGINS_VERSION', '2.0.1');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -70,7 +70,6 @@ function plugin_init_tregoplugins(): void
         PluginTregopluginsOlaReportProfile::class,
         ['addtabon' => Profile::class]
     );
-    PluginTregopluginsOlaReport::installRights();
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_add';

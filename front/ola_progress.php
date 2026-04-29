@@ -6,6 +6,7 @@ header('Content-Type: application/json; charset=UTF-8');
 
 Session::checkLoginUser();
 
+require_once __DIR__ . '/../src/OlaBusinessTimeService.php';
 require_once __DIR__ . '/../src/OlaProgressService.php';
 
 $raw_ids = $_GET['ids'] ?? [];
