@@ -143,7 +143,13 @@ class PluginTregopluginsOlaReportRepository
             return;
         }
 
-        self::startGroupPass($ticket, $group_id, self::currentDatetime(), self::getOpenGroupId((int) $ticket->getID()));
+        $ticket_id = (int) $ticket->getID();
+        $from_group_id = self::getOpenGroupId($ticket_id);
+        if ($from_group_id <= 0) {
+            $from_group_id = self::getLastKnownGroupId($ticket_id);
+        }
+
+        self::startGroupPass($ticket, $group_id, self::currentDatetime(), $from_group_id);
     }
 
     public static function handleGroupChange(CommonDBTM $item): void
@@ -157,7 +163,45 @@ class PluginTregopluginsOlaReportRepository
             return;
         }
 
-        self::handleGroupAssignment($item);
+        $ticket = self::getTicketFromActorLink($item);
+        if ($ticket === null) {
+            return;
+        }
+
+        $old_type = (int) ($item->oldvalues['type'] ?? $item->fields['type'] ?? $item->input['type'] ?? 0);
+        $new_type = (int) ($item->fields['type'] ?? $item->input['type'] ?? 0);
+        $old_group_id = (int) ($item->oldvalues['groups_id'] ?? $item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0);
+        $new_group_id = (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0);
+        $event_at = self::currentDatetime();
+
+        if ($old_type === CommonITILActor::ASSIGN && $old_group_id > 0 && $old_group_id !== $new_group_id) {
+            self::closePreviousGroupPass($ticket, $old_group_id, 'escalated', $event_at);
+        }
+
+        if ($new_type !== CommonITILActor::ASSIGN || $new_group_id <= 0) {
+            return;
+        }
+
+        self::startGroupPass($ticket, $new_group_id, $event_at, $old_group_id);
+    }
+
+    public static function handleGroupRemoval(CommonDBTM $item): void
+    {
+        if (!$item instanceof Group_Ticket) {
+            return;
+        }
+
+        if ((int) ($item->fields['type'] ?? $item->input['type'] ?? 0) !== CommonITILActor::ASSIGN) {
+            return;
+        }
+
+        $ticket = self::getTicketFromActorLink($item);
+        $group_id = (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0);
+        if ($ticket === null || $group_id <= 0) {
+            return;
+        }
+
+        self::closePreviousGroupPass($ticket, $group_id, 'group_removed', self::currentDatetime());
     }
 
     public static function handleTechnicianAssignment(CommonDBTM $item): void
@@ -413,6 +457,80 @@ class PluginTregopluginsOlaReportRepository
         );
     }
 
+    private static function closePreviousGroupPass(Ticket $ticket, int $group_id, string $reason, string $event_at): void
+    {
+        $ticket_id = (int) $ticket->getID();
+        if ($ticket_id <= 0 || $group_id <= 0 || !self::ticketHasOlaTimeToOwn($ticket)) {
+            return;
+        }
+
+        $open = self::getOpenPass($ticket_id);
+        if ($open !== null && (int) ($open['groups_id'] ?? 0) === $group_id) {
+            self::closeOpenPass((int) $open['id'], $reason, $event_at, null);
+            return;
+        }
+
+        self::insertClosedGroupPassIfMissing(
+            $ticket,
+            $group_id,
+            self::getPassStartForTicket($ticket),
+            $event_at,
+            $reason
+        );
+    }
+
+    private static function insertClosedGroupPassIfMissing(
+        Ticket $ticket,
+        int $group_id,
+        string $started_at,
+        string $ended_at,
+        string $reason
+    ): void {
+        global $DB;
+
+        $ticket_id = (int) $ticket->getID();
+        if (
+            $ticket_id <= 0
+            || $group_id <= 0
+            || $started_at === ''
+            || self::hasPassForStart($ticket_id, $group_id, $started_at)
+        ) {
+            return;
+        }
+
+        $calendar_id = PluginTregopluginsOlaBusinessTimeService::getCalendarIdForTicketGroup($ticket, $group_id);
+        $due_date = PluginTregopluginsOlaBusinessTimeService::computeDueDate($ticket, $started_at, $group_id);
+        $snapshot = self::buildTicketSnapshot($ticket);
+        $now = self::currentDatetime();
+
+        $DB->insert(
+            self::TABLE,
+            self::escapeDbValues([
+                'tickets_id'                 => $ticket_id,
+                'entities_id'                => (int) ($ticket->fields['entities_id'] ?? 0),
+                'ticket_title'               => $snapshot['ticket_title'],
+                'ticket_status'              => $snapshot['ticket_status'],
+                'ticket_status_label'        => $snapshot['ticket_status_label'],
+                'ticket_opened_at'           => $snapshot['ticket_opened_at'],
+                'itilcategories_id'          => $snapshot['itilcategories_id'],
+                'category_name'              => $snapshot['category_name'],
+                'requester_name'             => $snapshot['requester_name'],
+                'groups_id'                  => $group_id,
+                'group_name'                 => self::getGroupName($group_id),
+                'escalated_from_groups_id'   => self::getLastKnownGroupId($ticket_id),
+                'escalated_from_group_name'  => self::getGroupName(self::getLastKnownGroupId($ticket_id)),
+                'calendars_id'               => $calendar_id,
+                'pass_started_at'            => $started_at,
+                'ola_due_at'                 => $due_date,
+                'pass_ended_at'              => $ended_at,
+                'is_open'                    => 0,
+                'close_reason'               => $reason,
+                'date_creation'              => $now,
+                'date_mod'                   => $now,
+            ])
+        );
+    }
+
     private static function seedAssignmentIfPresent(Ticket $ticket): void
     {
         $ticket_id = (int) $ticket->getID();
@@ -627,6 +745,40 @@ class PluginTregopluginsOlaReportRepository
     {
         $open = self::getOpenPass($ticket_id);
         return $open !== null ? (int) ($open['groups_id'] ?? 0) : 0;
+    }
+
+    private static function getLastKnownGroupId(int $ticket_id): int
+    {
+        global $DB;
+
+        if ($ticket_id <= 0 || !$DB->tableExists(self::TABLE)) {
+            return 0;
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => ['groups_id'],
+            'FROM'   => self::TABLE,
+            'WHERE'  => ['tickets_id' => $ticket_id],
+            'ORDER'  => ['pass_started_at DESC', 'id DESC'],
+            'LIMIT'  => 1,
+        ]);
+
+        if (count($iterator) === 0) {
+            return 0;
+        }
+
+        $row = $iterator->current();
+        return (int) ($row['groups_id'] ?? 0);
+    }
+
+    private static function getPassStartForTicket(Ticket $ticket): string
+    {
+        $started_at = trim((string) ($ticket->fields['ola_tto_begin_date'] ?? ''));
+        if ($started_at === '') {
+            $started_at = trim((string) ($ticket->fields['date'] ?? ''));
+        }
+
+        return $started_at !== '' ? $started_at : self::currentDatetime();
     }
 
     private static function ticketHasOlaTimeToOwn(Ticket $ticket): bool

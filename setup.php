@@ -81,6 +81,10 @@ function plugin_init_tregoplugins(): void
         = 'plugin_tregoplugins_on_ticket_group_add';
     $PLUGIN_HOOKS['item_update']['tregoplugins']['Group_Ticket']
         = 'plugin_tregoplugins_on_ticket_group_update';
+    $PLUGIN_HOOKS['item_delete']['tregoplugins']['Group_Ticket']
+        = 'plugin_tregoplugins_on_ticket_group_delete';
+    $PLUGIN_HOOKS['item_purge']['tregoplugins']['Group_Ticket']
+        = 'plugin_tregoplugins_on_ticket_group_delete';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket_User']
         = 'plugin_tregoplugins_on_ticket_assigned_actor_add';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Supplier_Ticket']
@@ -127,6 +131,11 @@ function plugin_tregoplugins_on_ticket_group_update(CommonDBTM $item): void
 {
     PluginTregopluginsOlaReportRepository::handleGroupChange($item);
     PluginTregopluginsTicketAutomation::restartOlaTtoForGroupChange($item);
+}
+
+function plugin_tregoplugins_on_ticket_group_delete(CommonDBTM $item): void
+{
+    PluginTregopluginsOlaReportRepository::handleGroupRemoval($item);
 }
 
 function plugin_tregoplugins_on_ticket_assigned_actor_add(CommonDBTM $item): void
