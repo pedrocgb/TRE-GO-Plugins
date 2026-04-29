@@ -2,6 +2,7 @@
     var STORAGE_KEY = 'tregoplugins:ticket-list:show-ola-progress';
     var CORE_SEARCH_OPTION_ID = '186';
     var PLUGIN_COLUMN_ID = 'plugin-tregoplugins-ola-progress';
+    var REFRESH_INTERVAL_MS = 30000;
 
     function isTicketListContext() {
         var url = new URL(window.location.href);
@@ -184,7 +185,9 @@
 
             var $cell = $cells.eq(columnIndex);
             if (!ticketId) {
-                $cell.html("<span class='text-muted'>-</span>");
+                if ($cell.hasClass('tregoplugins-ola-progress-cell-wrapper')) {
+                    $cell.html("<span class='text-muted'>-</span>");
+                }
                 return;
             }
 
@@ -200,7 +203,7 @@
             url: CFG_GLPI.root_doc + '/plugins/tregoplugins/front/ola_progress.php',
             method: 'GET',
             dataType: 'json',
-            traditional: true,
+            cache: false,
             data: {
                 ids: ids
             }
@@ -219,10 +222,31 @@
     }
 
     function extractTicketId($row) {
+        var rowId = parseInt(
+            $row.attr('data-id') || $row.attr('data-item-id') || $row.data('id') || '0',
+            10
+        );
+        if (rowId > 0) {
+            return rowId;
+        }
+
         var checkboxName = $row.find('input.massive_action_checkbox').attr('name') || '';
         var checkboxMatch = checkboxName.match(/\[(\d+)\]$/);
         if (checkboxMatch) {
             return parseInt(checkboxMatch[1], 10);
+        }
+
+        var inputTicketId = 0;
+        $row.find('input[name]').each(function () {
+            var name = $(this).attr('name') || '';
+            var match = name.match(/\[Ticket\]\[(\d+)\]/);
+            if (match) {
+                inputTicketId = parseInt(match[1], 10);
+                return false;
+            }
+        });
+        if (inputTicketId > 0) {
+            return inputTicketId;
         }
 
         var ticketId = 0;
@@ -247,6 +271,24 @@
         return ticketId;
     }
 
+    function refreshEnabledTables() {
+        if (!readPreference() || !isTicketListContext()) {
+            return;
+        }
+
+        $('.search-results').each(function () {
+            var $table = $(this);
+            var coreColumnIndex = findColumnIndex($table, CORE_SEARCH_OPTION_ID);
+            if (coreColumnIndex >= 0) {
+                fetchColumnData($table, coreColumnIndex);
+                return;
+            }
+
+            ensurePluginColumn($table);
+            fetchColumnData($table, findColumnIndex($table, PLUGIN_COLUMN_ID));
+        });
+    }
+
     $(function () {
         enhanceAllTables();
 
@@ -259,5 +301,7 @@
             childList: true,
             subtree: true
         });
+
+        window.setInterval(refreshEnabledTables, REFRESH_INTERVAL_MS);
     });
 })(jQuery);
