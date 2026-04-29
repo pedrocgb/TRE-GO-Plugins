@@ -168,15 +168,22 @@ class PluginTregopluginsOlaReportRepository
             return [];
         }
 
-        $iterator = $DB->request([
-            'FROM'  => self::TABLE,
-            'WHERE' => [
-                'groups_id' => $group_id,
-                ['pass_started_at' => ['>=', $date_from]],
-                ['pass_started_at' => ['<=', $date_to]],
-            ],
-            'ORDER' => ['pass_started_at ASC', 'id ASC'],
-        ]);
+        self::syncCurrentPasses();
+
+        $group_id = (int) $group_id;
+        $date_from = $DB->escape($date_from);
+        $date_to = $DB->escape($date_to);
+        $iterator = $DB->request(
+            "SELECT `p`.*
+             FROM `" . self::TABLE . "` AS `p`
+             INNER JOIN `glpi_tickets` AS `t`
+                ON (`t`.`id` = `p`.`tickets_id`)
+             WHERE `p`.`groups_id` = {$group_id}
+               AND `t`.`is_deleted` = 0
+               AND `p`.`pass_started_at` <= '{$date_to}'
+               AND COALESCE(`p`.`pass_ended_at`, `p`.`assigned_at`, NOW()) >= '{$date_from}'
+             ORDER BY `p`.`pass_started_at` ASC, `p`.`id` ASC"
+        );
 
         $rows = [];
         foreach ($iterator as $row) {
@@ -248,7 +255,17 @@ class PluginTregopluginsOlaReportRepository
         return count($iterator) > 0 ? self::formatGroupName($iterator->current()) : '';
     }
 
+    public static function syncCurrentPasses(): void
+    {
+        self::seedCurrentPasses();
+    }
+
     private static function seedCurrentOpenPasses(): void
+    {
+        self::seedCurrentPasses();
+    }
+
+    private static function seedCurrentPasses(): void
     {
         global $DB;
 
@@ -260,8 +277,6 @@ class PluginTregopluginsOlaReportRepository
                 ON (`t`.`id` = `gt`.`tickets_id`)
              WHERE `gt`.`type` = " . (int) CommonITILActor::ASSIGN . "
                AND `t`.`is_deleted` = 0
-               AND `t`.`status` NOT IN (" . (int) Ticket::SOLVED . ", " . (int) Ticket::CLOSED . ")
-               AND `t`.`olas_id_tto` > 0
              ORDER BY `gt`.`id` ASC"
         );
 
@@ -289,7 +304,12 @@ class PluginTregopluginsOlaReportRepository
                 $started_at = trim((string) ($ticket->fields['date'] ?? self::currentDatetime()));
             }
 
+            if (self::hasPassForStart($ticket_id, $group_id, $started_at)) {
+                continue;
+            }
+
             self::startGroupPass($ticket, $group_id, $started_at, 0);
+            self::seedAssignmentIfPresent($ticket);
         }
     }
 
@@ -299,7 +319,7 @@ class PluginTregopluginsOlaReportRepository
 
         self::ensureSchema();
         $ticket_id = (int) $ticket->getID();
-        if ($ticket_id <= 0 || $group_id <= 0 || (int) ($ticket->fields['olas_id_tto'] ?? 0) <= 0) {
+        if ($ticket_id <= 0 || $group_id <= 0) {
             return;
         }
 
@@ -347,6 +367,35 @@ class PluginTregopluginsOlaReportRepository
                 'date_mod'                   => $now,
             ]
         );
+    }
+
+    private static function seedAssignmentIfPresent(Ticket $ticket): void
+    {
+        $ticket_id = (int) $ticket->getID();
+        if ($ticket_id <= 0 || self::getOpenPass($ticket_id) === null) {
+            return;
+        }
+
+        $assigned_at = trim((string) ($ticket->fields['takeintoaccountdate'] ?? ''));
+        if ($assigned_at === '') {
+            $delay = (int) ($ticket->fields['takeintoaccount_delay_stat'] ?? 0);
+            $start = trim((string) ($ticket->fields['ola_tto_begin_date'] ?? $ticket->fields['date'] ?? ''));
+            if ($delay > 0 && $start !== '') {
+                $assigned_at = date('Y-m-d H:i:s', strtotime($start) + $delay);
+            }
+        }
+
+        $user_id = self::getCurrentAssignedUserId($ticket_id);
+        $supplier_id = self::getCurrentAssignedSupplierId($ticket_id);
+        if ($user_id <= 0 && $supplier_id <= 0 && $assigned_at === '') {
+            return;
+        }
+
+        if ($assigned_at === '') {
+            $assigned_at = self::currentDatetime();
+        }
+
+        self::assignOpenPass($ticket, $user_id, $supplier_id, $assigned_at);
     }
 
     private static function assignOpenPass(Ticket $ticket, int $user_id, int $supplier_id, string $event_at): void
@@ -495,6 +544,28 @@ class PluginTregopluginsOlaReportRepository
         return count($iterator) > 0 ? $iterator->current() : null;
     }
 
+    private static function hasPassForStart(int $ticket_id, int $group_id, string $started_at): bool
+    {
+        global $DB;
+
+        if ($ticket_id <= 0 || $group_id <= 0 || !$DB->tableExists(self::TABLE)) {
+            return false;
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => self::TABLE,
+            'WHERE'  => [
+                'tickets_id'       => $ticket_id,
+                'groups_id'        => $group_id,
+                'pass_started_at'  => $started_at,
+            ],
+            'LIMIT'  => 1,
+        ]);
+
+        return count($iterator) > 0;
+    }
+
     private static function getOpenGroupId(int $ticket_id): int
     {
         $open = self::getOpenPass($ticket_id);
@@ -506,6 +577,60 @@ class PluginTregopluginsOlaReportRepository
         $ticket_id = (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0);
         $ticket = new Ticket();
         return $ticket_id > 0 && $ticket->getFromDB($ticket_id) ? $ticket : null;
+    }
+
+    private static function getCurrentAssignedUserId(int $ticket_id): int
+    {
+        global $DB;
+
+        if ($ticket_id <= 0) {
+            return 0;
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => ['users_id'],
+            'FROM'   => 'glpi_tickets_users',
+            'WHERE'  => [
+                'tickets_id' => $ticket_id,
+                'type'       => CommonITILActor::ASSIGN,
+            ],
+            'ORDER'  => ['id DESC'],
+            'LIMIT'  => 1,
+        ]);
+
+        if (count($iterator) === 0) {
+            return 0;
+        }
+
+        $row = $iterator->current();
+        return (int) ($row['users_id'] ?? 0);
+    }
+
+    private static function getCurrentAssignedSupplierId(int $ticket_id): int
+    {
+        global $DB;
+
+        if ($ticket_id <= 0) {
+            return 0;
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => ['suppliers_id'],
+            'FROM'   => 'glpi_suppliers_tickets',
+            'WHERE'  => [
+                'tickets_id' => $ticket_id,
+                'type'       => CommonITILActor::ASSIGN,
+            ],
+            'ORDER'  => ['id DESC'],
+            'LIMIT'  => 1,
+        ]);
+
+        if (count($iterator) === 0) {
+            return 0;
+        }
+
+        $row = $iterator->current();
+        return (int) ($row['suppliers_id'] ?? 0);
     }
 
     private static function getRequesterNames(int $ticket_id): string

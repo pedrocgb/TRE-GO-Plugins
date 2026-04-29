@@ -51,7 +51,7 @@ echo "        <h1 class='tregoplugins-ola-report-title'>Relatório OLA</h1>";
 echo "        <p class='tregoplugins-ola-report-subtitle'>Histórico de Tempo de Atendimento por grupo, com calendário útil.</p>";
 echo "      </div>";
 echo "      <form class='row g-2 align-items-end' method='post' action='" . Html::entities_deep($page_url) . "'>";
-echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken(true)]);
+echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
 echo "        <input type='hidden' name='calendar_groups_id' value='" . (int) $selected_group_id . "'>";
 echo "        <div class='col-auto'><label class='form-label'>Calendário do grupo</label><select class='form-select' name='calendars_id'>";
 echo "          <option value='0'>Fallback da OLA/entidade</option>";
