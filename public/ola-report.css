@@ -1,0 +1,38 @@
+.tregoplugins-ola-report {
+    max-width: 1440px;
+    margin: 0 auto;
+}
+
+.tregoplugins-ola-report-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.tregoplugins-ola-report-subtitle {
+    color: var(--tblr-muted, #667085);
+    margin: 0.25rem 0 0;
+}
+
+.tregoplugins-ola-report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.tregoplugins-ola-report-table {
+    font-size: 0.85rem;
+}
+
+.tregoplugins-ola-report-table th {
+    white-space: nowrap;
+}
+
+.tregoplugins-ola-report-empty {
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tblr-muted, #667085);
+}

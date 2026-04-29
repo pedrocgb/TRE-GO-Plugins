@@ -73,7 +73,7 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        self::restartOlaTtoCycle($ticket);
+        self::restartOlaTtoCycle($ticket, (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0));
     }
 
     public static function restartOlaTtoForGroupChange(CommonDBTM $item): void
@@ -120,9 +120,11 @@ class PluginTregopluginsTicketAutomation
             $ticket->getID(),
             [
                 'takeintoaccountdate'        => $assigned_at,
-                'takeintoaccount_delay_stat' => self::computeElapsedSeconds(
+                'takeintoaccount_delay_stat' => PluginTregopluginsOlaBusinessTimeService::getActiveTimeBetween(
+                    $ticket,
                     $cycle_start,
-                    $assigned_at
+                    $assigned_at,
+                    PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId($ticket->getID())
                 ),
             ]
         );
@@ -286,7 +288,7 @@ class PluginTregopluginsTicketAutomation
         return $ticket;
     }
 
-    private static function restartOlaTtoCycle(Ticket $ticket): void
+    private static function restartOlaTtoCycle(Ticket $ticket, int $group_id): void
     {
         $ola_id = (int) ($ticket->fields['olas_id_tto'] ?? 0);
         if ($ola_id <= 0) {
@@ -294,7 +296,7 @@ class PluginTregopluginsTicketAutomation
         }
 
         $started_at = $_SESSION['glpi_currenttime'] ?? date('Y-m-d H:i:s');
-        $due_date = self::computeOlaTtoDueDate($ticket, $started_at);
+        $due_date = PluginTregopluginsOlaBusinessTimeService::computeDueDate($ticket, $started_at, $group_id);
         if ($due_date === null) {
             return;
         }
@@ -309,18 +311,6 @@ class PluginTregopluginsTicketAutomation
                 'takeintoaccount_delay_stat' => 0,
             ]
         );
-    }
-
-    private static function computeOlaTtoDueDate(Ticket $ticket, string $started_at): ?string
-    {
-        $ola = new OLA();
-        if (!$ola->getFromDB((int) ($ticket->fields['olas_id_tto'] ?? 0))) {
-            return null;
-        }
-
-        $ola->setTicketCalendar((int) ($ticket->getCalendar(SLM::TTO) ?? 0));
-
-        return $ola->computeDate($started_at, 0);
     }
 
     /**
@@ -343,17 +333,6 @@ class PluginTregopluginsTicketAutomation
             $fields,
             ['id' => $ticket_id]
         );
-    }
-
-    private static function computeElapsedSeconds(string $start_date, string $end_date): int
-    {
-        $start = strtotime($start_date);
-        $end = strtotime($end_date);
-        if ($start === false || $end === false || $end <= $start) {
-            return 0;
-        }
-
-        return $end - $start;
     }
 
     private static function ticketAlreadyLinkedToKnowbase(int $ticket_id, int $knowbase_item_id): bool

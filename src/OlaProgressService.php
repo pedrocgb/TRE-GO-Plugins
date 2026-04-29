@@ -47,18 +47,25 @@ class PluginTregopluginsOlaProgressService
         }
 
         $current_date = self::resolveProgressEndDate($ticket);
+        $group_id = PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId((int) $ticket->getID());
         $currenttime = 0;
         $totaltime = 0;
         $waitingtime = 0;
 
         $ola_id = (int) ($ticket->fields['olas_id_tto'] ?? 0);
         if ($ola_id > 0) {
-            $ola = new OLA();
-            if ($ola->getFromDB($ola_id)) {
-                $ola->setTicketCalendar((int) ($ticket->getCalendar(SLM::TTO) ?? 0));
-                $currenttime = $ola->getActiveTimeBetween($start_date, $current_date);
-                $totaltime = $ola->getActiveTimeBetween($start_date, $due_date);
-            }
+            $currenttime = PluginTregopluginsOlaBusinessTimeService::getActiveTimeBetween(
+                $ticket,
+                $start_date,
+                $current_date,
+                $group_id
+            );
+            $totaltime = PluginTregopluginsOlaBusinessTimeService::getActiveTimeBetween(
+                $ticket,
+                $start_date,
+                $due_date,
+                $group_id
+            );
         }
 
         if ($totaltime <= 0) {
@@ -169,6 +176,21 @@ HTML;
 
     private static function resolveDueDate(Ticket $ticket): ?string
     {
+        $group_id = PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId((int) $ticket->getID());
+        if ($group_id > 0 && PluginTregopluginsOlaBusinessTimeService::getGroupCalendarId($group_id) > 0) {
+            $start_date = self::resolveStartDate($ticket);
+            if ($start_date !== null) {
+                $group_due_date = PluginTregopluginsOlaBusinessTimeService::computeDueDate(
+                    $ticket,
+                    $start_date,
+                    $group_id
+                );
+                if ($group_due_date !== null) {
+                    return $group_due_date;
+                }
+            }
+        }
+
         $due_date = trim((string) ($ticket->fields['internal_time_to_own'] ?? ''));
         if ($due_date !== '') {
             return $due_date;
@@ -231,9 +253,9 @@ HTML;
         }
 
         $delay = (int) ($ticket->fields['takeintoaccount_delay_stat'] ?? 0);
-        $opening_date = trim((string) ($ticket->fields['date'] ?? ''));
-        if ($delay > 0 && $opening_date !== '') {
-            return date('Y-m-d H:i:s', strtotime($opening_date) + $delay);
+        $start_date = self::resolveStartDate($ticket);
+        if ($delay > 0 && $start_date !== null) {
+            return date('Y-m-d H:i:s', strtotime($start_date) + $delay);
         }
 
         return null;

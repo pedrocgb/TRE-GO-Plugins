@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '1.2.0');
+define('PLUGIN_TREGOPLUGINS_VERSION', '2.0.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -40,7 +40,11 @@ define('PLUGIN_TREGOPLUGINS_MAX_GLPI_VERSION', '11.0.0');
 
 require_once __DIR__ . '/src/CategoryConfig.php';
 require_once __DIR__ . '/src/CategoryForm.php';
+require_once __DIR__ . '/src/OlaBusinessTimeService.php';
 require_once __DIR__ . '/src/OlaProgressService.php';
+require_once __DIR__ . '/src/OlaReport.php';
+require_once __DIR__ . '/src/OlaReportProfile.php';
+require_once __DIR__ . '/src/OlaReportRepository.php';
 require_once __DIR__ . '/src/SolutionForm.php';
 require_once __DIR__ . '/src/TicketAutomation.php';
 
@@ -52,12 +56,26 @@ function plugin_init_tregoplugins(): void
     global $PLUGIN_HOOKS;
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::CSRF_COMPLIANT]['tregoplugins'] = true;
-    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['tregoplugins'] = 'public/tregoplugins.css';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['tregoplugins'] = [
+        'public/tregoplugins.css',
+        'public/ola-report.css',
+    ];
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['tregoplugins']
         = 'public/tregoplugins-ticket-list.js';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::MENU_TOADD]['tregoplugins'] = [
+        'management' => [PluginTregopluginsOlaReport::class],
+    ];
+
+    Plugin::registerClass(
+        PluginTregopluginsOlaReportProfile::class,
+        ['addtabon' => Profile::class]
+    );
+    PluginTregopluginsOlaReport::installRights();
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_add';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_UPDATE]['tregoplugins']['Ticket']
+        = 'plugin_tregoplugins_on_ticket_update';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_UPDATE]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_pre_update';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Group_Ticket']
@@ -87,6 +105,12 @@ function plugin_init_tregoplugins(): void
 function plugin_tregoplugins_on_ticket_add(CommonDBTM $item): void
 {
     PluginTregopluginsTicketAutomation::handleTicketCreated($item);
+    PluginTregopluginsOlaReportRepository::handleTicketCreated($item);
+}
+
+function plugin_tregoplugins_on_ticket_update(CommonDBTM $item): void
+{
+    PluginTregopluginsOlaReportRepository::handleTicketUpdated($item);
 }
 
 function plugin_tregoplugins_on_ticket_pre_update(CommonDBTM $item): void
@@ -96,16 +120,19 @@ function plugin_tregoplugins_on_ticket_pre_update(CommonDBTM $item): void
 
 function plugin_tregoplugins_on_ticket_group_add(CommonDBTM $item): void
 {
+    PluginTregopluginsOlaReportRepository::handleGroupAssignment($item);
     PluginTregopluginsTicketAutomation::restartOlaTtoForGroupAssignment($item);
 }
 
 function plugin_tregoplugins_on_ticket_group_update(CommonDBTM $item): void
 {
+    PluginTregopluginsOlaReportRepository::handleGroupChange($item);
     PluginTregopluginsTicketAutomation::restartOlaTtoForGroupChange($item);
 }
 
 function plugin_tregoplugins_on_ticket_assigned_actor_add(CommonDBTM $item): void
 {
+    PluginTregopluginsOlaReportRepository::handleTechnicianAssignment($item);
     PluginTregopluginsTicketAutomation::markOlaTtoAssigned($item);
 }
 
