@@ -388,7 +388,7 @@ class PluginTregopluginsOlaReportRepository
 
         $DB->insert(
             self::TABLE,
-            [
+            self::escapeDbValues([
                 'tickets_id'                 => $ticket_id,
                 'entities_id'                => (int) ($ticket->fields['entities_id'] ?? 0),
                 'ticket_title'               => $snapshot['ticket_title'],
@@ -409,7 +409,7 @@ class PluginTregopluginsOlaReportRepository
                 'close_reason'               => 'open',
                 'date_creation'              => $now,
                 'date_mod'                   => $now,
-            ]
+            ])
         );
     }
 
@@ -464,7 +464,7 @@ class PluginTregopluginsOlaReportRepository
 
         $DB->update(
             self::TABLE,
-            [
+            self::escapeDbValues([
                 'assigned_at'                   => $event_at,
                 'users_id_assign'               => $user_id,
                 'technician_name'               => $technician,
@@ -474,7 +474,7 @@ class PluginTregopluginsOlaReportRepository
                 'is_open'                       => 0,
                 'close_reason'                  => 'assigned',
                 'date_mod'                      => self::currentDatetime(),
-            ],
+            ]),
             ['id' => (int) $open['id']]
         );
     }
@@ -489,13 +489,13 @@ class PluginTregopluginsOlaReportRepository
 
         $DB->update(
             self::TABLE,
-            [
+            self::escapeDbValues([
                 'pass_ended_at' => $event_at,
                 'is_open'       => 0,
                 'close_reason'  => $reason,
                 'ola_exceeded'  => $ola_exceeded,
                 'date_mod'      => self::currentDatetime(),
-            ],
+            ]),
             ['id' => $pass_id]
         );
     }
@@ -512,7 +512,7 @@ class PluginTregopluginsOlaReportRepository
         $snapshot = self::buildTicketSnapshot($ticket);
         $DB->update(
             self::TABLE,
-            [
+            self::escapeDbValues([
                 'ticket_title'        => $snapshot['ticket_title'],
                 'ticket_status'       => $snapshot['ticket_status'],
                 'ticket_status_label' => $snapshot['ticket_status_label'],
@@ -520,7 +520,7 @@ class PluginTregopluginsOlaReportRepository
                 'category_name'       => $snapshot['category_name'],
                 'requester_name'      => $snapshot['requester_name'],
                 'date_mod'            => self::currentDatetime(),
-            ],
+            ]),
             ['id' => (int) $open['id']]
         );
     }
@@ -547,13 +547,26 @@ class PluginTregopluginsOlaReportRepository
         $started_at = (string) ($open['pass_started_at'] ?? self::currentDatetime());
         $DB->update(
             self::TABLE,
-            [
+            self::escapeDbValues([
                 'calendars_id' => PluginTregopluginsOlaBusinessTimeService::getCalendarIdForTicketGroup($ticket, $group_id),
                 'ola_due_at'   => PluginTregopluginsOlaBusinessTimeService::computeDueDate($ticket, $started_at, $group_id),
                 'date_mod'     => self::currentDatetime(),
-            ],
+            ]),
             ['id' => (int) $open['id']]
         );
+    }
+
+    private static function escapeDbValues(array $values): array
+    {
+        global $DB;
+
+        foreach ($values as $key => $value) {
+            if (is_string($value)) {
+                $values[$key] = $DB->escape($value);
+            }
+        }
+
+        return $values;
     }
 
     private static function buildTicketSnapshot(Ticket $ticket): array
