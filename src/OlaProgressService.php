@@ -130,12 +130,12 @@ class PluginTregopluginsOlaProgressService
         return <<<HTML
 <div class="tregoplugins-ola-progress-cell">
    <span class="text-nowrap">{$due_date_label}</span>
-   <div class="progress" style="height: 16px">
+   <div class="progress tregoplugins-ola-progress-bar" style="height: 16px">
       <div class="progress-bar progress-bar-striped" role="progressbar"
            style="width: {$percentage}%; background-color: {$color};"
            aria-valuenow="{$percentage}" aria-valuemin="0" aria-valuemax="100">
-         {$percentage}%
       </div>
+      <span class="tregoplugins-ola-progress-label">{$percentage}%</span>
    </div>
 </div>
 HTML;
@@ -195,6 +195,10 @@ HTML;
 
     private static function resolveProgressEndDate(Ticket $ticket): string
     {
+        if (!self::isClosedStatus((int) ($ticket->fields['status'] ?? 0))) {
+            return date('Y-m-d H:i:s');
+        }
+
         $takeintoaccount_date = trim((string) ($ticket->fields['takeintoaccountdate'] ?? ''));
         if ($takeintoaccount_date !== '') {
             return $takeintoaccount_date;

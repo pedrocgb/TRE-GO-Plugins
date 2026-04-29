@@ -11,3 +11,20 @@
     min-width: 180px;
     margin-top: 0.25rem;
 }
+
+.tregoplugins-ola-progress-bar {
+    position: relative;
+}
+
+.tregoplugins-ola-progress-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tblr-body-color, #1f2937);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    pointer-events: none;
+}
