@@ -4,6 +4,8 @@ class PluginTregopluginsOlaReportRepository
 {
     public const TABLE = 'glpi_plugin_tregoplugins_ola_group_passes';
 
+    private static $schema_checked = false;
+
     public static function install(): void
     {
         self::ensureSchema();
@@ -31,13 +33,17 @@ class PluginTregopluginsOlaReportRepository
         $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
         if ($DB->tableExists(self::TABLE)) {
+            if (!self::$schema_checked) {
+                self::migrateSchema();
+                self::$schema_checked = true;
+            }
             return;
         }
 
         $DB->doQueryOrDie(
             "CREATE TABLE `" . self::TABLE . "` (
                 `id` int {$default_key_sign} NOT NULL AUTO_INCREMENT,
-                `tickets_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                `tickets_id` bigint unsigned NOT NULL DEFAULT '0',
                 `entities_id` int {$default_key_sign} NOT NULL DEFAULT '0',
                 `ticket_title` varchar(255) NOT NULL DEFAULT '',
                 `ticket_status` int NOT NULL DEFAULT '0',
@@ -73,6 +79,38 @@ class PluginTregopluginsOlaReportRepository
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC",
             'Create plugin tregoplugins OLA report history table'
         );
+        self::$schema_checked = true;
+    }
+
+    private static function migrateSchema(): void
+    {
+        global $DB;
+
+        if (!self::isUnsignedBigintColumn('tickets_id')) {
+            $DB->doQueryOrDie(
+                "ALTER TABLE `" . self::TABLE . "`
+                 MODIFY COLUMN `tickets_id` bigint unsigned NOT NULL DEFAULT '0'",
+                'Update plugin tregoplugins OLA report ticket id column'
+            );
+        }
+    }
+
+    private static function isUnsignedBigintColumn(string $column): bool
+    {
+        global $DB;
+
+        $column = $DB->escape($column);
+        $iterator = $DB->request(
+            "SHOW COLUMNS FROM `" . self::TABLE . "` LIKE '{$column}'"
+        );
+
+        if (count($iterator) === 0) {
+            return false;
+        }
+
+        $row = $iterator->current();
+        $type = strtolower((string) ($row['Type'] ?? ''));
+        return strpos($type, 'bigint') !== false && strpos($type, 'unsigned') !== false;
     }
 
     public static function handleTicketCreated(CommonDBTM $item): void
@@ -180,6 +218,7 @@ class PluginTregopluginsOlaReportRepository
                 ON (`t`.`id` = `p`.`tickets_id`)
              WHERE `p`.`groups_id` = {$group_id}
                AND `t`.`is_deleted` = 0
+               AND `t`.`olas_id_tto` > 0
                AND `p`.`pass_started_at` <= '{$date_to}'
                AND COALESCE(`p`.`pass_ended_at`, `p`.`assigned_at`, NOW()) >= '{$date_from}'
              ORDER BY `p`.`pass_started_at` ASC, `p`.`id` ASC"
@@ -277,6 +316,7 @@ class PluginTregopluginsOlaReportRepository
                 ON (`t`.`id` = `gt`.`tickets_id`)
              WHERE `gt`.`type` = " . (int) CommonITILActor::ASSIGN . "
                AND `t`.`is_deleted` = 0
+               AND `t`.`olas_id_tto` > 0
              ORDER BY `gt`.`id` ASC"
         );
 
@@ -320,6 +360,10 @@ class PluginTregopluginsOlaReportRepository
         self::ensureSchema();
         $ticket_id = (int) $ticket->getID();
         if ($ticket_id <= 0 || $group_id <= 0) {
+            return;
+        }
+
+        if (!self::ticketHasOlaTimeToOwn($ticket)) {
             return;
         }
 
@@ -570,6 +614,11 @@ class PluginTregopluginsOlaReportRepository
     {
         $open = self::getOpenPass($ticket_id);
         return $open !== null ? (int) ($open['groups_id'] ?? 0) : 0;
+    }
+
+    private static function ticketHasOlaTimeToOwn(Ticket $ticket): bool
+    {
+        return (int) ($ticket->fields['olas_id_tto'] ?? 0) > 0;
     }
 
     private static function getTicketFromActorLink(CommonDBTM $item): ?Ticket
