@@ -579,10 +579,13 @@ class PluginTregopluginsOlaReportRepository
         );
         $duration = PluginTregopluginsOlaBusinessTimeService::getOlaDurationSeconds($ticket);
         $technician = $user_id > 0 ? self::getUserName($user_id) : self::getSupplierName($supplier_id);
+        $snapshot = self::buildAssignedTicketSnapshot($ticket);
 
         $DB->update(
             self::TABLE,
             self::escapeDbValues([
+                'ticket_status'                 => $snapshot['ticket_status'],
+                'ticket_status_label'           => $snapshot['ticket_status_label'],
                 'assigned_at'                   => $event_at,
                 'users_id_assign'               => $user_id,
                 'technician_name'               => $technician,
@@ -699,6 +702,17 @@ class PluginTregopluginsOlaReportRepository
             'category_name'       => self::getCategoryName((int) ($ticket->fields['itilcategories_id'] ?? 0)),
             'requester_name'      => self::getRequesterNames((int) $ticket->getID()),
         ];
+    }
+
+    private static function buildAssignedTicketSnapshot(Ticket $ticket): array
+    {
+        $snapshot = self::buildTicketSnapshot($ticket);
+        if ((int) ($snapshot['ticket_status'] ?? 0) === Ticket::INCOMING) {
+            $snapshot['ticket_status'] = Ticket::ASSIGNED;
+            $snapshot['ticket_status_label'] = self::formatTicketStatus(Ticket::ASSIGNED);
+        }
+
+        return $snapshot;
     }
 
     private static function getOpenPass(int $ticket_id): ?array

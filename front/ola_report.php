@@ -147,8 +147,9 @@ function self_report_headers(): array
         'Técnico Responsável',
         'Escalonado Por',
         'Data Escalonamento',
-        'Excedeu Tempo de Atendimento',
+        'Tempo Máximo para Atribuição',
         'Horário do Atendimento',
+        'Excedeu Tempo de Atendimento',
         'Tempo excedido',
     ];
 }
@@ -165,8 +166,9 @@ function self_report_row(array $row): array
         (string) ($row['technician_name'] ?? ''),
         (string) ($row['escalated_from_group_name'] ?? ''),
         self_format_datetime(self_escalation_date($row)),
-        self_ola_exceeded_label($row),
+        self_format_datetime((string) ($row['ola_due_at'] ?? '')),
         self_format_datetime((string) ($row['assigned_at'] ?? '')),
+        self_ola_exceeded_label($row),
         self_elapsed_label($row),
     ];
 }
