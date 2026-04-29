@@ -58,6 +58,76 @@ class PluginTregopluginsTicketAutomation
         $item->input['_solutiontemplates_id'] = $solution_template_id;
     }
 
+    public static function restartOlaTtoForGroupAssignment(CommonDBTM $item): void
+    {
+        if (!$item instanceof Group_Ticket) {
+            return;
+        }
+
+        if ((int) ($item->fields['type'] ?? $item->input['type'] ?? 0) !== CommonITILActor::ASSIGN) {
+            return;
+        }
+
+        $ticket = self::getTicketFromActorLink($item);
+        if ($ticket === null) {
+            return;
+        }
+
+        self::restartOlaTtoCycle($ticket);
+    }
+
+    public static function restartOlaTtoForGroupChange(CommonDBTM $item): void
+    {
+        if (!$item instanceof Group_Ticket) {
+            return;
+        }
+
+        $updated_fields = (array) ($item->updates ?? []);
+        if (!in_array('groups_id', $updated_fields, true) && !in_array('type', $updated_fields, true)) {
+            return;
+        }
+
+        self::restartOlaTtoForGroupAssignment($item);
+    }
+
+    public static function markOlaTtoAssigned(CommonDBTM $item): void
+    {
+        if (!$item instanceof Ticket_User && !$item instanceof Supplier_Ticket) {
+            return;
+        }
+
+        if ((int) ($item->fields['type'] ?? $item->input['type'] ?? 0) !== CommonITILActor::ASSIGN) {
+            return;
+        }
+
+        $ticket = self::getTicketFromActorLink($item);
+        if ($ticket === null || (int) ($ticket->fields['olas_id_tto'] ?? 0) <= 0) {
+            return;
+        }
+
+        $takeintoaccount_date = trim((string) ($ticket->fields['takeintoaccountdate'] ?? ''));
+        if ($takeintoaccount_date !== '') {
+            return;
+        }
+
+        $assigned_at = $_SESSION['glpi_currenttime'] ?? date('Y-m-d H:i:s');
+        $cycle_start = trim((string) ($ticket->fields['ola_tto_begin_date'] ?? ''));
+        if ($cycle_start === '') {
+            $cycle_start = trim((string) ($ticket->fields['date'] ?? $assigned_at));
+        }
+
+        self::updateTicketOlaFields(
+            $ticket->getID(),
+            [
+                'takeintoaccountdate'        => $assigned_at,
+                'takeintoaccount_delay_stat' => self::computeElapsedSeconds(
+                    $cycle_start,
+                    $assigned_at
+                ),
+            ]
+        );
+    }
+
     public static function prepareSolutionCreation(CommonDBTM $item): void
     {
         if (!$item instanceof ITILSolution) {
@@ -199,6 +269,91 @@ class PluginTregopluginsTicketAutomation
         $plain_text = preg_replace('/\x{00a0}/u', ' ', $plain_text);
 
         return trim((string) $plain_text) !== '';
+    }
+
+    private static function getTicketFromActorLink(CommonDBTM $item): ?Ticket
+    {
+        $ticket_id = (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0);
+        if ($ticket_id <= 0) {
+            return null;
+        }
+
+        $ticket = new Ticket();
+        if (!$ticket->getFromDB($ticket_id)) {
+            return null;
+        }
+
+        return $ticket;
+    }
+
+    private static function restartOlaTtoCycle(Ticket $ticket): void
+    {
+        $ola_id = (int) ($ticket->fields['olas_id_tto'] ?? 0);
+        if ($ola_id <= 0) {
+            return;
+        }
+
+        $started_at = $_SESSION['glpi_currenttime'] ?? date('Y-m-d H:i:s');
+        $due_date = self::computeOlaTtoDueDate($ticket, $started_at);
+        if ($due_date === null) {
+            return;
+        }
+
+        self::updateTicketOlaFields(
+            $ticket->getID(),
+            [
+                'ola_tto_begin_date'         => $started_at,
+                'internal_time_to_own'       => $due_date,
+                'ola_waiting_duration'       => 0,
+                'takeintoaccountdate'        => null,
+                'takeintoaccount_delay_stat' => 0,
+            ]
+        );
+    }
+
+    private static function computeOlaTtoDueDate(Ticket $ticket, string $started_at): ?string
+    {
+        $ola = new OLA();
+        if (!$ola->getFromDB((int) ($ticket->fields['olas_id_tto'] ?? 0))) {
+            return null;
+        }
+
+        $ola->setTicketCalendar((int) ($ticket->getCalendar(SLM::TTO) ?? 0));
+
+        return $ola->computeDate($started_at, 0);
+    }
+
+    /**
+     * Update the OLA timing fields without going through Ticket::update(), which
+     * would trigger another actor/status update pass while GLPI is still adding
+     * the assignment relation.
+     *
+     * @param array<string, mixed> $fields
+     */
+    private static function updateTicketOlaFields(int $ticket_id, array $fields): void
+    {
+        global $DB;
+
+        if ($ticket_id <= 0 || count($fields) === 0) {
+            return;
+        }
+
+        $DB->update(
+            Ticket::getTable(),
+            $fields,
+            ['id' => $ticket_id]
+        );
+    }
+
+    private static function computeElapsedSeconds(string $start_date, string $end_date): int
+    {
+        $start = strtotime($start_date);
+        $end = strtotime($end_date);
+        if ($start === false || $end === false || $end <= $start) {
+            return 0;
+        }
+
+        return $end - $start;
     }
 
     private static function ticketAlreadyLinkedToKnowbase(int $ticket_id, int $knowbase_item_id): bool

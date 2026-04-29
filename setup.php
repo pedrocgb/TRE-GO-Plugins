@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '1.1.5');
+define('PLUGIN_TREGOPLUGINS_VERSION', '1.2.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -60,6 +60,14 @@ function plugin_init_tregoplugins(): void
         = 'plugin_tregoplugins_on_ticket_add';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_UPDATE]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_pre_update';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Group_Ticket']
+        = 'plugin_tregoplugins_on_ticket_group_add';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_UPDATE]['tregoplugins']['Group_Ticket']
+        = 'plugin_tregoplugins_on_ticket_group_update';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket_User']
+        = 'plugin_tregoplugins_on_ticket_assigned_actor_add';
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Supplier_Ticket']
+        = 'plugin_tregoplugins_on_ticket_assigned_actor_add';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_ADD]['tregoplugins']['ITILSolution']
         = 'plugin_tregoplugins_on_itilsolution_pre_add';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_FORM]['tregoplugins']
@@ -84,6 +92,21 @@ function plugin_tregoplugins_on_ticket_add(CommonDBTM $item): void
 function plugin_tregoplugins_on_ticket_pre_update(CommonDBTM $item): void
 {
     PluginTregopluginsTicketAutomation::prepareTicketClosure($item);
+}
+
+function plugin_tregoplugins_on_ticket_group_add(CommonDBTM $item): void
+{
+    PluginTregopluginsTicketAutomation::restartOlaTtoForGroupAssignment($item);
+}
+
+function plugin_tregoplugins_on_ticket_group_update(CommonDBTM $item): void
+{
+    PluginTregopluginsTicketAutomation::restartOlaTtoForGroupChange($item);
+}
+
+function plugin_tregoplugins_on_ticket_assigned_actor_add(CommonDBTM $item): void
+{
+    PluginTregopluginsTicketAutomation::markOlaTtoAssigned($item);
 }
 
 function plugin_tregoplugins_on_itilsolution_pre_add(CommonDBTM $item): void

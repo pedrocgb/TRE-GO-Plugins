@@ -12,6 +12,14 @@
     margin-top: 0.25rem;
 }
 
+.tregoplugins-ola-progress-status {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
 .tregoplugins-ola-progress-bar {
     position: relative;
 }

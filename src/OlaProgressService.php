@@ -30,8 +30,9 @@ class PluginTregopluginsOlaProgressService
         );
 
         $color = self::resolveProgressColor($percentage);
+        $status_label = self::resolveStatusLabel($ticket, $percentage);
 
-        return self::renderCellMarkup($due_date_label, $percentage, $color);
+        return self::renderCellMarkup($due_date_label, $percentage, $color, $status_label);
     }
 
     /**
@@ -121,15 +122,21 @@ class PluginTregopluginsOlaProgressService
     private static function renderCellMarkup(
         string $due_date_label,
         ?int $percentage = null,
-        ?string $color = null
+        ?string $color = null,
+        ?string $status_label = null
     ): string {
         if ($percentage === null || $color === null) {
             return "<div class='tregoplugins-ola-progress-cell'><span class='text-nowrap'>{$due_date_label}</span></div>";
         }
 
+        $status_markup = $status_label !== null
+            ? "<span class='tregoplugins-ola-progress-status'>{$status_label}</span>"
+            : '';
+
         return <<<HTML
 <div class="tregoplugins-ola-progress-cell">
    <span class="text-nowrap">{$due_date_label}</span>
+   {$status_markup}
    <div class="progress tregoplugins-ola-progress-bar" style="height: 16px">
       <div class="progress-bar progress-bar-striped" role="progressbar"
            style="width: {$percentage}%; background-color: {$color};"
@@ -144,6 +151,15 @@ HTML;
     private static function renderInfoCell(string $message): string
     {
         return "<div class='tregoplugins-ola-progress-cell'><span class='text-muted'>{$message}</span></div>";
+    }
+
+    private static function resolveStatusLabel(Ticket $ticket, int $percentage): ?string
+    {
+        if (self::resolveAssignmentPauseDate($ticket) === null) {
+            return null;
+        }
+
+        return $percentage >= 100 ? 'Atrasado' : 'Atribuído';
     }
 
     private static function isClosedStatus(int $status): bool
@@ -195,10 +211,20 @@ HTML;
 
     private static function resolveProgressEndDate(Ticket $ticket): string
     {
+        $pause_date = self::resolveAssignmentPauseDate($ticket);
+        if ($pause_date !== null) {
+            return $pause_date;
+        }
+
         if (!self::isClosedStatus((int) ($ticket->fields['status'] ?? 0))) {
             return date('Y-m-d H:i:s');
         }
 
+        return date('Y-m-d H:i:s');
+    }
+
+    private static function resolveAssignmentPauseDate(Ticket $ticket): ?string
+    {
         $takeintoaccount_date = trim((string) ($ticket->fields['takeintoaccountdate'] ?? ''));
         if ($takeintoaccount_date !== '') {
             return $takeintoaccount_date;
@@ -210,6 +236,6 @@ HTML;
             return date('Y-m-d H:i:s', strtotime($opening_date) + $delay);
         }
 
-        return date('Y-m-d H:i:s');
+        return null;
     }
 }
