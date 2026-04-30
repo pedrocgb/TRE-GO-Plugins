@@ -64,9 +64,9 @@ function export_headers(): array
         'Escalonado Por',
         'Data Escalonamento',
         'Tempo Máximo para Atribuição',
-        'Horário do Atendimento',
-        'Excedeu Tempo de Atendimento',
-        'Tempo excedido',
+        'Horário da Atribuição',
+        'Excedeu Tempo de Atribuição',
+        'Tempo até o atendimento',
     ];
 }
 

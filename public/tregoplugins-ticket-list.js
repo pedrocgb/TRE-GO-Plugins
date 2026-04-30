@@ -2,6 +2,8 @@
     var STORAGE_KEY = 'tregoplugins:ticket-list:show-ola-progress';
     var CORE_SEARCH_OPTION_ID = '186';
     var PLUGIN_COLUMN_ID = 'plugin-tregoplugins-ola-progress';
+    var COLUMN_LABEL = 'Tempo para atribuição';
+    var COLUMN_TITLE = 'Tempo para atribuição com a OLA';
     var REFRESH_INTERVAL_MS = 30000;
 
     function isTicketListContext() {
@@ -27,6 +29,8 @@
         if (!isTicketListContext()) {
             return;
         }
+
+        localizeNativeSearchOptionLabels(document);
 
         $('.search-results').each(function () {
             enhanceTable($(this));
@@ -58,7 +62,7 @@
             "<div class='tregoplugins-ola-progress-toolbar d-flex justify-content-end mb-2'>" +
                 "<div class='form-check form-switch'>" +
                     "<input class='form-check-input tregoplugins-ola-progress-toggle' type='checkbox' id='" + checkboxId + "'>" +
-                    "<label class='form-check-label' for='" + checkboxId + "'>Exibir progresso da OLA (TTO)</label>" +
+                    "<label class='form-check-label' for='" + checkboxId + "'>Exibir " + COLUMN_LABEL + "</label>" +
                 "</div>" +
             "</div>"
         );
@@ -113,12 +117,40 @@
         }
 
         var $sortIndicator = $header.find('.sort-indicator').detach();
-        $header.text('Progresso da OLA (TTO)');
+        $header.text(COLUMN_LABEL);
         if ($sortIndicator.length) {
             $header.append(' ').append($sortIndicator);
         }
-        $header.attr('title', 'Tempo para assumir com a OLA');
+        $header.attr('title', COLUMN_TITLE);
         $header.data('tregopluginsLocalized', true);
+    }
+
+    function localizeNativeSearchOptionLabels(root) {
+        var $root = $(root);
+
+        $root.find('option').each(function () {
+            var $option = $(this);
+            var value = String($option.val() || '');
+            if (
+                value === CORE_SEARCH_OPTION_ID ||
+                value.match(new RegExp('\\[' + CORE_SEARCH_OPTION_ID + '\\]$')) ||
+                $option.data('searchoptId') == CORE_SEARCH_OPTION_ID
+            ) {
+                $option.text(COLUMN_LABEL);
+            }
+        });
+
+        $root.find('[data-searchopt-id="' + CORE_SEARCH_OPTION_ID + '"]').each(function () {
+            var $element = $(this);
+            if ($element.is('th')) {
+                return;
+            }
+
+            if ($element.children().length === 0) {
+                $element.text(COLUMN_LABEL);
+            }
+            $element.attr('title', COLUMN_TITLE);
+        });
     }
 
     function setColumnVisibility($table, columnIndex, enabled) {
@@ -136,7 +168,7 @@
         }
 
         $table.find('thead tr').each(function () {
-            $(this).append("<th data-searchopt-id='" + PLUGIN_COLUMN_ID + "' title='Tempo para assumir com a OLA'>Progresso da OLA (TTO)</th>");
+            $(this).append("<th data-searchopt-id='" + PLUGIN_COLUMN_ID + "' title='" + COLUMN_TITLE + "'>" + COLUMN_LABEL + "</th>");
         });
 
         $table.find('tbody tr').each(function () {
@@ -294,7 +326,10 @@
 
         var observer = new MutationObserver(function () {
             window.clearTimeout(window.tregopluginsOlaObserverTimer);
-            window.tregopluginsOlaObserverTimer = window.setTimeout(enhanceAllTables, 60);
+            window.tregopluginsOlaObserverTimer = window.setTimeout(function () {
+                localizeNativeSearchOptionLabels(document);
+                enhanceAllTables();
+            }, 60);
         });
 
         observer.observe(document.body, {

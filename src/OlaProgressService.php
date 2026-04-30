@@ -8,7 +8,7 @@ class PluginTregopluginsOlaProgressService
     public static function renderProgressCell(Ticket $ticket): string
     {
         if ((int) ($ticket->fields['olas_id_tto'] ?? 0) <= 0) {
-            return self::renderInfoCell('Sem OLA TTO');
+            return self::renderInfoCell('OLA Não configurado');
         }
 
         $due_date = self::resolveDueDate($ticket);
