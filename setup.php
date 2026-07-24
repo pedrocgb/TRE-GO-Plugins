@@ -36,7 +36,7 @@ define('PLUGIN_TREGOPLUGINS_VERSION', '2.0.9');
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_MAX_GLPI_VERSION', '11.0.0');
+define('PLUGIN_TREGOPLUGINS_MAX_GLPI_VERSION', '11.9.99');
 
 require_once __DIR__ . '/src/CategoryConfig.php';
 require_once __DIR__ . '/src/CategoryForm.php';

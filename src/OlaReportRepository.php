@@ -84,33 +84,35 @@ class PluginTregopluginsOlaReportRepository
 
     private static function migrateSchema(): void
     {
-        global $DB;
-
-        if (!self::isUnsignedBigintColumn('tickets_id')) {
-            $DB->doQueryOrDie(
-                "ALTER TABLE `" . self::TABLE . "`
-                 MODIFY COLUMN `tickets_id` bigint unsigned NOT NULL DEFAULT '0'",
-                'Update plugin tregoplugins OLA report ticket id column'
-            );
+        if (self::isUnsignedBigintColumn('tickets_id')) {
+            return;
         }
+
+        $migration = new Migration(PLUGIN_TREGOPLUGINS_VERSION);
+        $migration->changeField(
+            self::TABLE,
+            'tickets_id',
+            'tickets_id',
+            'bigint unsigned',
+            ['value' => 0]
+        );
+        $migration->executeMigration();
     }
 
     private static function isUnsignedBigintColumn(string $column): bool
     {
         global $DB;
 
-        $column = $DB->escape($column);
-        $iterator = $DB->request(
-            "SHOW COLUMNS FROM `" . self::TABLE . "` LIKE '{$column}'"
-        );
+        foreach ($DB->listFields(self::TABLE) as $name => $field) {
+            if ($name !== $column) {
+                continue;
+            }
 
-        if (count($iterator) === 0) {
-            return false;
+            $type = strtolower((string) ($field['Type'] ?? ''));
+            return strpos($type, 'bigint') !== false && strpos($type, 'unsigned') !== false;
         }
 
-        $row = $iterator->current();
-        $type = strtolower((string) ($row['Type'] ?? ''));
-        return strpos($type, 'bigint') !== false && strpos($type, 'unsigned') !== false;
+        return false;
     }
 
     public static function handleTicketCreated(CommonDBTM $item): void
@@ -253,20 +255,30 @@ class PluginTregopluginsOlaReportRepository
         self::syncCurrentPasses();
 
         $group_id = (int) $group_id;
-        $date_from = $DB->escape($date_from);
-        $date_to = $DB->escape($date_to);
-        $iterator = $DB->request(
-            "SELECT `p`.*
-             FROM `" . self::TABLE . "` AS `p`
-             INNER JOIN `glpi_tickets` AS `t`
-                ON (`t`.`id` = `p`.`tickets_id`)
-             WHERE `p`.`groups_id` = {$group_id}
-               AND `t`.`is_deleted` = 0
-               AND `t`.`olas_id_tto` > 0
-               AND `p`.`pass_started_at` <= '{$date_to}'
-               AND COALESCE(`p`.`pass_ended_at`, `p`.`assigned_at`, NOW()) >= '{$date_from}'
-             ORDER BY `p`.`pass_started_at` ASC, `p`.`id` ASC"
-        );
+        $iterator = $DB->request([
+            'SELECT'    => ['p.*'],
+            'FROM'      => self::TABLE . ' AS p',
+            'INNER JOIN' => [
+                'glpi_tickets AS t' => [
+                    'FKEY' => [
+                        't' => 'id',
+                        'p' => 'tickets_id',
+                    ],
+                ],
+            ],
+            'WHERE'     => [
+                'p.groups_id'     => $group_id,
+                't.is_deleted'    => 0,
+                't.olas_id_tto'   => ['>', 0],
+                'p.pass_started_at' => ['<=', $date_to],
+                new \Glpi\DBAL\QueryExpression(
+                    'COALESCE(' . $DB->quoteName('p.pass_ended_at') . ', '
+                    . $DB->quoteName('p.assigned_at') . ', NOW()) >= '
+                    . $DB->quote($date_from)
+                ),
+            ],
+            'ORDER'     => ['p.pass_started_at ASC', 'p.id ASC'],
+        ]);
 
         $rows = [];
         foreach ($iterator as $row) {
@@ -353,16 +365,24 @@ class PluginTregopluginsOlaReportRepository
         global $DB;
 
         self::ensureSchema();
-        $iterator = $DB->request(
-            "SELECT `gt`.`tickets_id`, `gt`.`groups_id`
-             FROM `glpi_groups_tickets` AS `gt`
-             INNER JOIN `glpi_tickets` AS `t`
-                ON (`t`.`id` = `gt`.`tickets_id`)
-             WHERE `gt`.`type` = " . (int) CommonITILActor::ASSIGN . "
-               AND `t`.`is_deleted` = 0
-               AND `t`.`olas_id_tto` > 0
-             ORDER BY `gt`.`id` ASC"
-        );
+        $iterator = $DB->request([
+            'SELECT'     => ['gt.tickets_id', 'gt.groups_id'],
+            'FROM'       => 'glpi_groups_tickets AS gt',
+            'INNER JOIN' => [
+                'glpi_tickets AS t' => [
+                    'FKEY' => [
+                        't'  => 'id',
+                        'gt' => 'tickets_id',
+                    ],
+                ],
+            ],
+            'WHERE'      => [
+                'gt.type'       => CommonITILActor::ASSIGN,
+                't.is_deleted'  => 0,
+                't.olas_id_tto' => ['>', 0],
+            ],
+            'ORDER'      => ['gt.id ASC'],
+        ]);
 
         $latest_group_by_ticket = [];
         foreach ($iterator as $row) {
@@ -432,7 +452,7 @@ class PluginTregopluginsOlaReportRepository
 
         $DB->insert(
             self::TABLE,
-            self::escapeDbValues([
+            [
                 'tickets_id'                 => $ticket_id,
                 'entities_id'                => (int) ($ticket->fields['entities_id'] ?? 0),
                 'ticket_title'               => $snapshot['ticket_title'],
@@ -453,7 +473,7 @@ class PluginTregopluginsOlaReportRepository
                 'close_reason'               => 'open',
                 'date_creation'              => $now,
                 'date_mod'                   => $now,
-            ])
+            ]
         );
     }
 
@@ -505,7 +525,7 @@ class PluginTregopluginsOlaReportRepository
 
         $DB->insert(
             self::TABLE,
-            self::escapeDbValues([
+            [
                 'tickets_id'                 => $ticket_id,
                 'entities_id'                => (int) ($ticket->fields['entities_id'] ?? 0),
                 'ticket_title'               => $snapshot['ticket_title'],
@@ -527,7 +547,7 @@ class PluginTregopluginsOlaReportRepository
                 'close_reason'               => $reason,
                 'date_creation'              => $now,
                 'date_mod'                   => $now,
-            ])
+            ]
         );
     }
 
@@ -583,7 +603,7 @@ class PluginTregopluginsOlaReportRepository
 
         $DB->update(
             self::TABLE,
-            self::escapeDbValues([
+            [
                 'ticket_status'                 => $snapshot['ticket_status'],
                 'ticket_status_label'           => $snapshot['ticket_status_label'],
                 'assigned_at'                   => $event_at,
@@ -595,7 +615,7 @@ class PluginTregopluginsOlaReportRepository
                 'is_open'                       => 0,
                 'close_reason'                  => 'assigned',
                 'date_mod'                      => self::currentDatetime(),
-            ]),
+            ],
             ['id' => (int) $open['id']]
         );
     }
@@ -610,13 +630,13 @@ class PluginTregopluginsOlaReportRepository
 
         $DB->update(
             self::TABLE,
-            self::escapeDbValues([
+            [
                 'pass_ended_at' => $event_at,
                 'is_open'       => 0,
                 'close_reason'  => $reason,
                 'ola_exceeded'  => $ola_exceeded,
                 'date_mod'      => self::currentDatetime(),
-            ]),
+            ],
             ['id' => $pass_id]
         );
     }
@@ -633,7 +653,7 @@ class PluginTregopluginsOlaReportRepository
         $snapshot = self::buildTicketSnapshot($ticket);
         $DB->update(
             self::TABLE,
-            self::escapeDbValues([
+            [
                 'ticket_title'        => $snapshot['ticket_title'],
                 'ticket_status'       => $snapshot['ticket_status'],
                 'ticket_status_label' => $snapshot['ticket_status_label'],
@@ -641,7 +661,7 @@ class PluginTregopluginsOlaReportRepository
                 'category_name'       => $snapshot['category_name'],
                 'requester_name'      => $snapshot['requester_name'],
                 'date_mod'            => self::currentDatetime(),
-            ]),
+            ],
             ['id' => (int) $open['id']]
         );
     }
@@ -668,26 +688,13 @@ class PluginTregopluginsOlaReportRepository
         $started_at = (string) ($open['pass_started_at'] ?? self::currentDatetime());
         $DB->update(
             self::TABLE,
-            self::escapeDbValues([
+            [
                 'calendars_id' => PluginTregopluginsOlaBusinessTimeService::getCalendarIdForTicketGroup($ticket, $group_id),
                 'ola_due_at'   => PluginTregopluginsOlaBusinessTimeService::computeDueDate($ticket, $started_at, $group_id),
                 'date_mod'     => self::currentDatetime(),
-            ]),
+            ],
             ['id' => (int) $open['id']]
         );
-    }
-
-    private static function escapeDbValues(array $values): array
-    {
-        global $DB;
-
-        foreach ($values as $key => $value) {
-            if (is_string($value)) {
-                $values[$key] = $DB->escape($value);
-            }
-        }
-
-        return $values;
     }
 
     private static function buildTicketSnapshot(Ticket $ticket): array

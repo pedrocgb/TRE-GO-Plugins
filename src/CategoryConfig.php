@@ -285,40 +285,57 @@ class PluginTregopluginsCategoryConfig
             return;
         }
 
+        $migration = new Migration(PLUGIN_TREGOPLUGINS_VERSION);
+
         if (!$DB->fieldExists(self::TABLE, 'solutiontemplates_id_request')) {
-            $DB->doQueryOrDie(
-                "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `solutiontemplates_id_request` int {$default_key_sign} NOT NULL DEFAULT '0'",
-                'Add request solution template column'
+            $migration->addField(
+                self::TABLE,
+                'solutiontemplates_id_request',
+                'integer',
+                ['value' => 0, 'after' => 'itilcategories_id']
             );
         }
 
         if (!$DB->fieldExists(self::TABLE, 'solutiontemplates_id_incident')) {
-            $DB->doQueryOrDie(
-                "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `solutiontemplates_id_incident` int {$default_key_sign} NOT NULL DEFAULT '0'",
-                'Add incident solution template column'
+            $migration->addField(
+                self::TABLE,
+                'solutiontemplates_id_incident',
+                'integer',
+                ['value' => 0, 'after' => 'solutiontemplates_id_request']
             );
         }
 
         if (!$DB->fieldExists(self::TABLE, self::DB_FIELD_AUTO_LINK_KB)) {
-            $DB->doQueryOrDie(
-                "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `" . self::DB_FIELD_AUTO_LINK_KB . "` tinyint NOT NULL DEFAULT '1'",
-                'Add knowledge base auto-link column'
+            $migration->addField(
+                self::TABLE,
+                self::DB_FIELD_AUTO_LINK_KB,
+                'bool',
+                ['value' => 1, 'after' => 'solutiontemplates_id_incident']
             );
         }
 
+        $migration->executeMigration();
+
         if ($DB->fieldExists(self::TABLE, self::LEGACY_DB_FIELD)) {
-            $DB->doQueryOrDie(
-                "UPDATE `" . self::TABLE . "`
-                 SET `solutiontemplates_id_request` = CASE
-                        WHEN `solutiontemplates_id_request` = 0 THEN `" . self::LEGACY_DB_FIELD . "`
-                        ELSE `solutiontemplates_id_request`
-                     END,
-                     `solutiontemplates_id_incident` = CASE
-                        WHEN `solutiontemplates_id_incident` = 0 THEN `" . self::LEGACY_DB_FIELD . "`
-                        ELSE `solutiontemplates_id_incident`
-                     END
-                 WHERE `" . self::LEGACY_DB_FIELD . "` > 0",
-                'Migrate legacy solution template column'
+            $DB->update(
+                self::TABLE,
+                ['solutiontemplates_id_request' => new \Glpi\DBAL\QueryExpression(
+                    $DB->quoteName(self::LEGACY_DB_FIELD)
+                )],
+                [
+                    'solutiontemplates_id_request' => 0,
+                    [self::LEGACY_DB_FIELD => ['>', 0]],
+                ]
+            );
+            $DB->update(
+                self::TABLE,
+                ['solutiontemplates_id_incident' => new \Glpi\DBAL\QueryExpression(
+                    $DB->quoteName(self::LEGACY_DB_FIELD)
+                )],
+                [
+                    'solutiontemplates_id_incident' => 0,
+                    [self::LEGACY_DB_FIELD => ['>', 0]],
+                ]
             );
         }
     }
