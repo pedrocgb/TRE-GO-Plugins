@@ -200,7 +200,7 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        $solution->fields['content'] = \Glpi\Toolbox\Sanitizer::sanitize($rendered_content);
+        $solution->fields['content'] = $rendered_content;
         $solution->fields['solutiontypes_id'] = (int) ($template->fields['solutiontypes_id'] ?? 0);
     }
 
