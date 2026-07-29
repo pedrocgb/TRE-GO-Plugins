@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '2.0.9');
+define('PLUGIN_TREGOPLUGINS_VERSION', '2.1.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -40,6 +40,9 @@ define('PLUGIN_TREGOPLUGINS_MAX_GLPI_VERSION', '11.9.99');
 
 require_once __DIR__ . '/src/CategoryConfig.php';
 require_once __DIR__ . '/src/CategoryForm.php';
+require_once __DIR__ . '/src/KbVisibilityConfig.php';
+require_once __DIR__ . '/src/KbVisibilityGuard.php';
+require_once __DIR__ . '/src/KbVisibilityProfile.php';
 require_once __DIR__ . '/src/OlaBusinessTimeService.php';
 require_once __DIR__ . '/src/OlaProgressService.php';
 require_once __DIR__ . '/src/OlaReport.php';
@@ -70,6 +73,19 @@ function plugin_init_tregoplugins(): void
         PluginTregopluginsOlaReportProfile::class,
         ['addtabon' => Profile::class]
     );
+    Plugin::registerClass(
+        PluginTregopluginsKbVisibilityProfile::class,
+        ['addtabon' => Profile::class]
+    );
+    Plugin::registerClass(
+        PluginTregopluginsKbVisibilityConfig::class,
+        ['addtabon' => Config::class]
+    );
+
+    // Runtime workaround for the GLPI KnowbaseItem visibility bug (see
+    // src/KbVisibilityGuard.php for the full explanation).
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_INIT]['tregoplugins']
+        = [PluginTregopluginsKbVisibilityGuard::class, 'boot'];
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['Ticket']
         = 'plugin_tregoplugins_on_ticket_add';
@@ -176,18 +192,22 @@ if (!function_exists('plugin_tregoplugins_uninstall')) {
 function plugin_tregoplugins_do_install(): bool
 {
     PluginTregopluginsCategoryConfig::install();
+    PluginTregopluginsKbVisibilityConfig::install();
     PluginTregopluginsOlaBusinessTimeService::install();
     PluginTregopluginsOlaReportRepository::install();
     PluginTregopluginsOlaReport::installRights();
+    PluginTregopluginsKbVisibilityConfig::installRights();
 
     return true;
 }
 
 function plugin_tregoplugins_do_uninstall(): bool
 {
+    PluginTregopluginsKbVisibilityConfig::uninstallRights();
     PluginTregopluginsOlaReport::uninstallRights();
     PluginTregopluginsOlaReportRepository::uninstall();
     PluginTregopluginsOlaBusinessTimeService::uninstall();
+    PluginTregopluginsKbVisibilityConfig::uninstall();
     PluginTregopluginsCategoryConfig::uninstall();
 
     return true;

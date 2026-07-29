@@ -1,6 +1,6 @@
 # Automação TRE-GO para Categorias ITIL
 
-Plugin para GLPI 10.x que amplia o comportamento de categorias ITIL sem qualquer alteração no core.
+Plugin para GLPI 10.x e 11.x que amplia o comportamento de categorias ITIL sem qualquer alteração no core.
 
 ## Funcionalidades
 
@@ -11,6 +11,7 @@ Plugin para GLPI 10.x que amplia o comportamento de categorias ITIL sem qualquer
 5. Pré-preenche o formulário **Add a solution** com o modelo configurado para a categoria e para o tipo do ticket.
 6. Ao resolver ou fechar um ticket sem solução existente, reaproveita o modelo configurado usando o mecanismo nativo do GLPI.
 7. Adiciona uma visualização de **Progresso da OLA (TTO)** na lista de tickets, com opção de exibir ou ocultar.
+8. Corrige o bug de visibilidade da Base de Conhecimento (artigos restritos por Grupo/Perfil/Usuário vazando para outros usuários), com toggle e permissão por perfil próprios — ver seção **Base de Conhecimento: correção de visibilidade**.
 
 ## Observação importante sobre a Base de Conhecimento
 
@@ -22,6 +23,45 @@ Para manter a compatibilidade com o comportamento nativo do GLPI, o plugin:
 2. Busca os artigos disponíveis dentro dessa categoria da Base de Conhecimento.
 3. Vincula automaticamente o **primeiro artigo encontrado** ao ticket.
 
+## Base de Conhecimento: correção de visibilidade
+
+O GLPI tem um bug em `KnowbaseItem::getVisibilityCriteriaKB()`: um artigo
+restrito apenas por Grupo/Perfil/Usuário (sem alvo de Entidade explícito)
+fica visível para qualquer usuário com direito de leitura na Base de
+Conhecimento, ignorando a restrição configurada. O core não expõe hook
+dentro dos métodos afetados, então a correção não pode ser feita via SQL sem
+alterar o core.
+
+Este módulo intercepta a saída HTML das telas que listam artigos da Base de
+Conhecimento (`front/knowbaseitem.php`, `front/helpdesk.faq.php`,
+`front/helpdesk.public.php`, `front/report.dynamic.php`,
+`ajax/knowbase.php`), reavalia cada artigo referenciado com
+`KnowbaseItem::canViewItem()` (que não tem o bug) e remove da resposta as
+linhas que o usuário não deveria ver.
+
+Limitação conhecida: contadores de lista/paginação calculados pelo core antes
+do filtro (ex.: "10 resultados") não são ajustados; apenas as linhas
+vazadas são removidas.
+
+### Ativar/desativar e permissão
+
+1. Acesse **Configurar > Geral > Base de Conhecimento - Visibilidade**.
+2. Use o toggle **Enable knowledge base visibility fix** para
+   ligar/desligar a correção sem desativar o plugin inteiro.
+3. Acesso a essa aba (ver e editar) é controlado pelo direito próprio
+   `plugin_tregoplugins_kbvisibility`, configurável por perfil em
+   **Perfis > (perfil) > TRE-GO > Base de Conhecimento**, com níveis
+   **Read** (ver o toggle) e **Update** (alterá-lo). Esse direito é
+   independente do direito da funcionalidade **Relatório OLA**: um perfil
+   pode ter acesso a um módulo e não ao outro.
+
+### Alterações de banco de dados (Base de Conhecimento)
+
+Tabela `glpi_plugin_tregoplugins_kbvisibilityconfigs`, linha única:
+
+1. `id`
+2. `enabled`
+
 ## Estrutura principal
 
 Arquivos principais do plugin:
@@ -29,13 +69,17 @@ Arquivos principais do plugin:
 1. `setup.php`
 2. `hook.php`
 3. `front/ola_progress.php`
-4. `public/tregoplugins.css`
-5. `public/tregoplugins-ticket-list.js`
-6. `src/CategoryConfig.php`
-7. `src/CategoryForm.php`
-8. `src/OlaProgressService.php`
-9. `src/SolutionForm.php`
-10. `src/TicketAutomation.php`
+4. `front/kbvisibility.config.form.php`
+5. `public/tregoplugins.css`
+6. `public/tregoplugins-ticket-list.js`
+7. `src/CategoryConfig.php`
+8. `src/CategoryForm.php`
+9. `src/KbVisibilityConfig.php`
+10. `src/KbVisibilityGuard.php`
+11. `src/KbVisibilityProfile.php`
+12. `src/OlaProgressService.php`
+13. `src/SolutionForm.php`
+14. `src/TicketAutomation.php`
 
 ## Alterações de banco de dados
 
@@ -142,11 +186,14 @@ Na lista de tickets:
 Compatível com:
 
 1. GLPI `>= 10.0.0`
-2. GLPI `< 11.0.0`
+2. GLPI `< 11.9.99`
 
 ## Desinstalação
 
 Ao desinstalar o plugin pelo mecanismo padrão do GLPI:
 
 1. A tabela `glpi_plugin_tregoplugins_itilcategoryconfigs` é removida.
-2. Nenhum arquivo do core do GLPI é alterado.
+2. A tabela `glpi_plugin_tregoplugins_kbvisibilityconfigs` é removida.
+3. Os direitos de perfil `plugin_tregoplugins_olareport` e
+   `plugin_tregoplugins_kbvisibility` são removidos.
+4. Nenhum arquivo do core do GLPI é alterado.
