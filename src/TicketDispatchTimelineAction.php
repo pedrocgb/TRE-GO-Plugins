@@ -34,34 +34,43 @@ class PluginTregopluginsTicketDispatchTimelineAction
 
         $eligibility = PluginTregopluginsTicketDispatchEligibility::evaluate($item);
         $label = __('Despachar chamado para Unidade Responsável', 'tregoplugins');
-        $icon_url = Plugin::getWebDir('tregoplugins') . '/public/img/lucide/forward.svg';
+        $icon = PluginTregopluginsIcon::html('forward', 16, 'me-1');
         $form_url = Plugin::getWebDir('tregoplugins') . '/front/ticketdispatch.form.php';
 
-        echo "<li class='plugin-tregoplugins-dispatch-action'>";
-        echo "<form method='post' action='" . Html::entities_deep($form_url) . "' class='d-inline'>";
+        echo "<li class='plugin-tregoplugins-dispatch-action" . ($eligibility['allowed'] ? '' : ' plugin-tregoplugins-disabled') . "'>";
+        echo "<div class='plugin-tregoplugins-dispatch-slot'>";
+
+        echo "<form method='post' action='" . Html::entities_deep($form_url) . "' class='plugin-tregoplugins-dispatch-form'>";
         echo Html::hidden('tickets_id', ['value' => $item->getID()]);
         echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
 
         $attributes = [
-            'type'  => 'submit',
-            'class' => 'btn btn-outline-secondary ms-2 mb-2 plugin-tregoplugins-dispatch-btn',
+            'type'  => $eligibility['allowed'] ? 'button' : 'submit',
+            'class' => 'btn btn-warning mb-2 plugin-tregoplugins-dispatch-btn',
             'title' => $eligibility['allowed'] ? $label : $eligibility['reason_label'],
         ];
         if (!$eligibility['allowed']) {
             $attributes['disabled'] = 'disabled';
-        } else {
-            $attributes['data-plugin-tregoplugins-confirm'] = __('O chamado será reavaliado pelas regras de abertura e movido para a unidade responsável calculada. Deseja continuar?', 'tregoplugins');
         }
 
         echo "<button";
         foreach ($attributes as $name => $value) {
             echo " " . $name . "='" . Html::entities_deep((string) $value) . "'";
         }
-        echo ">";
-        echo "<img src='" . Html::entities_deep($icon_url) . "' class='plugin-tregoplugins-dispatch-icon' alt='' aria-hidden='true' width='16' height='16'>";
-        echo "<span class='ms-1'>" . $label . "</span>";
-        echo "</button>";
+        echo ">" . $icon . "<span>" . $label . "</span></button>";
         echo "</form>";
+
+        if ($eligibility['allowed']) {
+            echo "<div class='plugin-tregoplugins-dispatch-confirm'>";
+            echo "<span class='plugin-tregoplugins-dispatch-confirm-text'>"
+                . __('O chamado será reavaliado pelas regras de abertura e movido para a unidade responsável calculada. Deseja continuar?', 'tregoplugins')
+                . "</span>";
+            echo "<button type='button' class='btn btn-success btn-sm plugin-tregoplugins-dispatch-yes'>" . __('Sim', 'tregoplugins') . "</button>";
+            echo "<button type='button' class='btn btn-secondary btn-sm plugin-tregoplugins-dispatch-no'>" . __('Não', 'tregoplugins') . "</button>";
+            echo "</div>";
+        }
+
+        echo "</div>"; // slot
         echo "</li>";
     }
 }

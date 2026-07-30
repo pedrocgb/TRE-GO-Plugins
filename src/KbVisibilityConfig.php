@@ -217,7 +217,7 @@ class PluginTregopluginsKbVisibilityConfig extends CommonDBTM
 
         echo "<div class='alert alert-info d-flex align-items-start mb-3'>";
         echo PluginTregopluginsIcon::html('info', 18, 'me-2 mt-1 flex-shrink-0');
-        echo "<div>" . __('Restores knowledge base Group/Profile/User visibility restrictions, which are otherwise bypassed by a core bug. Disable only for troubleshooting.', 'tregoplugins') . "</div>";
+        echo "<div>" . __('Restaura as restrições de visibilidade da Base de Conhecimento por Grupo/Perfil/Usuário, que são ignoradas por um bug do GLPI. Desative apenas para depuração.', 'tregoplugins') . "</div>";
         echo "</div>";
 
         echo "<div class='mb-1 form-check form-switch'>";
@@ -225,7 +225,7 @@ class PluginTregopluginsKbVisibilityConfig extends CommonDBTM
         echo "<input type='checkbox' class='form-check-input' id='tregoplugins_kb_enabled' name='enabled' value='1'"
             . ($config['enabled'] ? " checked" : "") . ($canedit ? "" : " disabled") . ">";
         echo "<label class='form-check-label' for='tregoplugins_kb_enabled'>"
-            . __('Enable knowledge base visibility fix', 'tregoplugins') . "</label>";
+            . __('Ativar correção de visibilidade da Base de Conhecimento', 'tregoplugins') . "</label>";
         echo "</div>";
 
         echo "</div>"; // card-body

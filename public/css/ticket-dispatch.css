@@ -1,13 +1,64 @@
+/* Timeline "Despachar chamado" action: sits beside the native Answer
+ * button (btn btn-primary answer-action mb-2). Match its height/spacing
+ * exactly and reset the generic ul.legacy-timeline-actions li padding
+ * (core adds padding:5px/border-radius meant for small icon links, not
+ * full Bootstrap buttons). */
+li.plugin-tregoplugins-dispatch-action {
+    padding: 0 !important;
+    margin-left: 0.5rem;
+    display: inline-flex;
+    align-items: flex-start;
+}
+
 .plugin-tregoplugins-dispatch-btn {
     display: inline-flex;
     align-items: center;
 }
 
-.plugin-tregoplugins-dispatch-icon {
-    display: inline-block;
-    vertical-align: middle;
+.plugin-tregoplugins-dispatch-btn:disabled {
+    opacity: 0.65;
 }
 
-.plugin-tregoplugins-dispatch-btn:disabled .plugin-tregoplugins-dispatch-icon {
-    opacity: 0.5;
+/* Button <-> confirm prompt swap: both occupy the same grid cell so the
+ * slot auto-sizes to the wider of the two, then slide vertically past
+ * each other, masked by overflow:hidden, so the prompt visually arrives
+ * from the exact spot the button just slid out of. */
+.plugin-tregoplugins-dispatch-slot {
+    position: relative;
+    display: inline-grid;
+    overflow: hidden;
+}
+
+.plugin-tregoplugins-dispatch-form,
+.plugin-tregoplugins-dispatch-confirm {
+    grid-column: 1;
+    grid-row: 1;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.plugin-tregoplugins-dispatch-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+    margin-bottom: 0.5rem;
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.plugin-tregoplugins-dispatch-confirm-text {
+    font-size: 0.875rem;
+}
+
+.plugin-tregoplugins-dispatch-action.plugin-tregoplugins-confirming .plugin-tregoplugins-dispatch-form {
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.plugin-tregoplugins-dispatch-action.plugin-tregoplugins-confirming .plugin-tregoplugins-dispatch-confirm {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
 }
