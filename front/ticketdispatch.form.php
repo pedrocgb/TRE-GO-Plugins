@@ -3,7 +3,9 @@
 include __DIR__ . '/../../../inc/includes.php';
 
 Session::checkLoginUser();
-Session::checkCSRF($_POST);
+// CSRF is already validated globally by inc/includes.php for every
+// non-AJAX POST; calling Session::checkCSRF() again here always fails
+// because the (single-use) token was already consumed by that check.
 
 $tickets_id = (int) ($_POST['tickets_id'] ?? 0);
 

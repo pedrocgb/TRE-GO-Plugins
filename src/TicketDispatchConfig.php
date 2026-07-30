@@ -182,24 +182,33 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
         $config  = self::getConfig();
         $canedit = self::canUpdate();
 
-        echo "<div class='center'>";
-        echo "<form name='form' method='post' action='" . Plugin::getWebDir('tregoplugins') . "/front/ticketdispatch.config.form.php'>";
-        echo "<table class='tab_cadre_fixe'>";
-        echo "<tr><th colspan='2'>" . self::getTypeName() . "</th></tr>";
+        echo "<div class='card mb-3'>";
+        echo "<form method='post' action='" . Plugin::getWebDir('tregoplugins') . "/front/ticketdispatch.config.form.php'>";
 
-        echo "<tr class='tab_bg_1'>";
-        echo "<td>" . __('Ativar módulo de despacho de chamados', 'tregoplugins') . "</td>";
-        echo "<td>";
-        if ($canedit) {
-            Dropdown::showYesNo('enabled', $config['enabled']);
-        } else {
-            echo $config['enabled'] ? __('Yes') : __('No');
-        }
-        echo "</td></tr>";
+        echo "<div class='card-header d-flex align-items-center'>";
+        echo PluginTregopluginsIcon::html('forward', 20, 'me-2');
+        echo "<span class='card-title mb-0'>" . self::getTypeName() . "</span>";
+        echo "</div>";
 
-        echo "<tr class='tab_bg_1'>";
-        echo "<td>" . __('Unidade Padrão dos chamados criados', 'tregoplugins') . "</td>";
-        echo "<td>";
+        echo "<div class='card-body'>";
+
+        echo "<div class='alert alert-info d-flex align-items-start mb-3'>";
+        echo PluginTregopluginsIcon::html('info', 18, 'me-2 mt-1 flex-shrink-0');
+        echo "<div>" . __('Chamados criados por qualquer via (interface, e-mail, API) são movidos para esta unidade após as regras de negócio normais serem executadas. O botão "Despachar chamado para Unidade Responsável" permite reaplicar essas regras manualmente depois.', 'tregoplugins') . "</div>";
+        echo "</div>";
+
+        echo "<div class='mb-3 form-check form-switch'>";
+        echo "<input type='hidden' name='enabled' value='0'>";
+        echo "<input type='checkbox' class='form-check-input' id='tregoplugins_td_enabled' name='enabled' value='1'"
+            . ($config['enabled'] ? " checked" : "") . ($canedit ? "" : " disabled") . ">";
+        echo "<label class='form-check-label' for='tregoplugins_td_enabled'>"
+            . __('Ativar módulo de despacho de chamados', 'tregoplugins') . "</label>";
+        echo "</div>";
+
+        echo "<div class='mb-3'>";
+        echo "<label class='form-label d-flex align-items-center' for='dropdown_groups_id'>"
+            . PluginTregopluginsIcon::html('building-2', 16, 'me-1')
+            . __('Unidade Padrão dos chamados criados', 'tregoplugins') . "</label>";
         if ($canedit) {
             Group::dropdown([
                 'name'      => 'groups_id',
@@ -209,23 +218,22 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
                 'entity_sons' => true,
             ]);
         } else {
-            echo Dropdown::getDropdownName(Group::getTable(), $config['groups_id']);
+            echo "<div>" . Dropdown::getDropdownName(Group::getTable(), $config['groups_id']) . "</div>";
         }
-        echo "</td></tr>";
+        echo "</div>";
 
-        echo "<tr class='tab_bg_1'>";
-        echo "<td colspan='2'>" . __('Chamados criados por qualquer via (interface, e-mail, API) são movidos para esta unidade após as regras de negócio normais serem executadas. O botão "Despachar chamado para Unidade Responsável" permite reaplicar essas regras manualmente depois.', 'tregoplugins') . "</td>";
-        echo "</tr>";
+        echo "</div>"; // card-body
 
         if ($canedit) {
-            echo "<tr class='tab_bg_1'>";
-            echo "<td colspan='2' class='center'>";
+            echo "<div class='card-footer text-end'>";
             echo Html::hidden('id', ['value' => self::CONFIG_ID]);
-            echo Html::submit(_sx('button', 'Save'), ['name' => 'update']);
-            echo "</td></tr>";
+            echo "<button type='submit' name='update' class='btn btn-primary'>"
+                . PluginTregopluginsIcon::html('save', 16, 'me-1')
+                . _sx('button', 'Save') . "</button>";
+            echo "</div>";
         }
-        echo "</table>";
+
         Html::closeForm();
-        echo "</div>";
+        echo "</div>"; // card
     }
 }

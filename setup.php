@@ -42,6 +42,7 @@ require_once __DIR__ . '/src/CategoryConfig.php';
 require_once __DIR__ . '/src/CategoryForm.php';
 require_once __DIR__ . '/src/KbVisibilityConfig.php';
 require_once __DIR__ . '/src/KbVisibilityGuard.php';
+require_once __DIR__ . '/src/Icon.php';
 require_once __DIR__ . '/src/MainProfile.php';
 require_once __DIR__ . '/src/OlaBusinessTimeService.php';
 require_once __DIR__ . '/src/OlaProgressService.php';

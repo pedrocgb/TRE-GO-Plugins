@@ -16,7 +16,9 @@ class PluginTregopluginsMainProfile extends CommonDBTM
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
     {
         if ($item instanceof Profile && $item->getID() > 0) {
-            return self::createTabEntry('TRE-GO');
+            $label = PluginTregopluginsIcon::html('building-2', 16, 'me-1') . " TRE-GO";
+
+            return self::createTabEntry($label);
         }
 
         return '';

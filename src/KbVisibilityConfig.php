@@ -205,31 +205,41 @@ class PluginTregopluginsKbVisibilityConfig extends CommonDBTM
         $config  = self::getConfig();
         $canedit = self::canUpdate();
 
-        echo "<div class='center'>";
-        echo "<form name='form' method='post' action='" . Plugin::getWebDir('tregoplugins') . "/front/kbvisibility.config.form.php'>";
-        echo "<table class='tab_cadre_fixe'>";
-        echo "<tr><th colspan='2'>" . self::getTypeName() . "</th></tr>";
-        echo "<tr class='tab_bg_1'>";
-        echo "<td>" . __('Enable knowledge base visibility fix', 'tregoplugins') . "</td>";
-        echo "<td>";
-        if ($canedit) {
-            Dropdown::showYesNo('enabled', $config['enabled']);
-        } else {
-            echo $config['enabled'] ? __('Yes') : __('No');
-        }
-        echo "</td></tr>";
-        echo "<tr class='tab_bg_1'>";
-        echo "<td colspan='2'>" . __('Restores knowledge base Group/Profile/User visibility restrictions, which are otherwise bypassed by a core bug. Disable only for troubleshooting.', 'tregoplugins') . "</td>";
-        echo "</tr>";
-        if ($canedit) {
-            echo "<tr class='tab_bg_1'>";
-            echo "<td colspan='2' class='center'>";
-            echo Html::hidden('id', ['value' => self::CONFIG_ID]);
-            echo Html::submit(_sx('button', 'Save'), ['name' => 'update']);
-            echo "</td></tr>";
-        }
-        echo "</table>";
-        Html::closeForm();
+        echo "<div class='card mb-3'>";
+        echo "<form method='post' action='" . Plugin::getWebDir('tregoplugins') . "/front/kbvisibility.config.form.php'>";
+
+        echo "<div class='card-header d-flex align-items-center'>";
+        echo PluginTregopluginsIcon::html('eye', 20, 'me-2');
+        echo "<span class='card-title mb-0'>" . self::getTypeName() . "</span>";
         echo "</div>";
+
+        echo "<div class='card-body'>";
+
+        echo "<div class='alert alert-info d-flex align-items-start mb-3'>";
+        echo PluginTregopluginsIcon::html('info', 18, 'me-2 mt-1 flex-shrink-0');
+        echo "<div>" . __('Restores knowledge base Group/Profile/User visibility restrictions, which are otherwise bypassed by a core bug. Disable only for troubleshooting.', 'tregoplugins') . "</div>";
+        echo "</div>";
+
+        echo "<div class='mb-1 form-check form-switch'>";
+        echo "<input type='hidden' name='enabled' value='0'>";
+        echo "<input type='checkbox' class='form-check-input' id='tregoplugins_kb_enabled' name='enabled' value='1'"
+            . ($config['enabled'] ? " checked" : "") . ($canedit ? "" : " disabled") . ">";
+        echo "<label class='form-check-label' for='tregoplugins_kb_enabled'>"
+            . __('Enable knowledge base visibility fix', 'tregoplugins') . "</label>";
+        echo "</div>";
+
+        echo "</div>"; // card-body
+
+        if ($canedit) {
+            echo "<div class='card-footer text-end'>";
+            echo Html::hidden('id', ['value' => self::CONFIG_ID]);
+            echo "<button type='submit' name='update' class='btn btn-primary'>"
+                . PluginTregopluginsIcon::html('save', 16, 'me-1')
+                . _sx('button', 'Save') . "</button>";
+            echo "</div>";
+        }
+
+        Html::closeForm();
+        echo "</div>"; // card
     }
 }
