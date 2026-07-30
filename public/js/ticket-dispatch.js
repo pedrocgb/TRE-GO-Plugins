@@ -1,5 +1,5 @@
 (function ($) {
-    var SUBMIT_DELAY_MS = 220; // matches the CSS transition duration
+    var SUBMIT_DELAY_MS = 180; // matches the CSS reveal animation duration
 
     $(document).on('click', '.plugin-tregoplugins-dispatch-btn:not(:disabled)', function (event) {
         event.preventDefault();

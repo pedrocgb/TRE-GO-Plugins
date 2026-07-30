@@ -33,6 +33,19 @@ class PluginTregopluginsTicketDispatchTimelineAction
         }
 
         $eligibility = PluginTregopluginsTicketDispatchEligibility::evaluate($item);
+
+        // Nothing to escalate: the ticket was already dispatched (no longer
+        // solely in the default unit) or the calculated responsible unit is
+        // the default unit itself. Showing a disabled button here would
+        // just be noise, so the action is omitted entirely.
+        $hidden_reasons = [
+            PluginTregopluginsTicketDispatchEligibility::NOT_IN_DEFAULT_UNIT,
+            PluginTregopluginsTicketDispatchEligibility::ALREADY_RESPONSIBLE_UNIT,
+        ];
+        if (!$eligibility['allowed'] && in_array($eligibility['reason_code'], $hidden_reasons, true)) {
+            return;
+        }
+
         $label = __('Despachar Chamado', 'tregoplugins');
         $full_label = __('Despachar chamado para Unidade Responsável', 'tregoplugins');
         $icon = PluginTregopluginsIcon::html('forward', 16, 'me-1');
@@ -62,11 +75,11 @@ class PluginTregopluginsTicketDispatchTimelineAction
         echo "</form>";
 
         if ($eligibility['allowed']) {
-            $group_names = array_map(
-                static fn(int $groups_id): string => Dropdown::getDropdownName(Group::getTable(), $groups_id),
-                $eligibility['calculated_group_ids']
-            );
-            $confirm_text = sprintf(__('Enviar para %s?', 'tregoplugins'), implode(', ', $group_names));
+            $group_names = array_map(static function (int $groups_id): string {
+                $group = new Group();
+                return $group->getFromDB($groups_id) ? (string) $group->fields['name'] : '';
+            }, $eligibility['calculated_group_ids']);
+            $confirm_text = sprintf(__('Enviar para %s?', 'tregoplugins'), implode(', ', array_filter($group_names)));
 
             echo "<div class='plugin-tregoplugins-dispatch-confirm'>";
             echo "<span class='plugin-tregoplugins-dispatch-confirm-text'>" . Html::entities_deep($confirm_text) . "</span>";

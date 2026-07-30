@@ -19,36 +19,28 @@ li.plugin-tregoplugins-dispatch-action {
     opacity: 0.65;
 }
 
-/* Button <-> confirm prompt swap. The form is the only element kept in
- * normal flow, so the slot's box (height in particular, to match the
- * Answer button exactly) is sized purely by the button itself. The
- * confirm prompt is absolutely positioned on top of that same spot and
- * never affects the slot's own size; overflow is only masked on the
- * vertical axis so the (wider) prompt isn't clipped horizontally. */
+/* Button <-> confirm prompt swap. Only one of the two is ever in the
+ * document flow at a time (display:none/inline-flex), so the slot's box
+ * (in particular its height, to match the Answer button exactly) is
+ * always driven purely by whichever is currently shown -- no shared
+ * grid/absolute stacking that could get clipped by an ancestor's
+ * overflow or force one side to stretch to match the other's size. The
+ * confirm prompt is allowed to wrap onto a second line instead of
+ * forcing unlimited width, since group names can be long. */
 .plugin-tregoplugins-dispatch-slot {
-    position: relative;
     display: inline-block;
-    overflow-x: visible;
-    overflow-y: hidden;
 }
 
 .plugin-tregoplugins-dispatch-form {
     display: inline-flex;
-    transition: transform 0.22s ease, opacity 0.22s ease;
 }
 
 .plugin-tregoplugins-dispatch-confirm {
-    position: absolute;
-    top: 0;
-    left: 0;
-    display: inline-flex;
+    display: none;
     align-items: center;
-    gap: 0.5rem;
-    white-space: nowrap;
-    transition: transform 0.22s ease, opacity 0.22s ease;
-    transform: translateY(-100%);
-    opacity: 0;
-    pointer-events: none;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    max-width: 260px;
 }
 
 .plugin-tregoplugins-dispatch-confirm-text {
@@ -56,13 +48,25 @@ li.plugin-tregoplugins-dispatch-action {
 }
 
 .plugin-tregoplugins-dispatch-action.plugin-tregoplugins-confirming .plugin-tregoplugins-dispatch-form {
-    transform: translateY(100%);
-    opacity: 0;
-    pointer-events: none;
+    display: none;
 }
 
 .plugin-tregoplugins-dispatch-action.plugin-tregoplugins-confirming .plugin-tregoplugins-dispatch-confirm {
-    transform: translateY(0);
-    opacity: 1;
-    pointer-events: auto;
+    display: inline-flex;
+    animation: plugin-tregoplugins-dispatch-reveal 0.18s ease;
+}
+
+.plugin-tregoplugins-dispatch-action:not(.plugin-tregoplugins-confirming) .plugin-tregoplugins-dispatch-form {
+    animation: plugin-tregoplugins-dispatch-reveal 0.18s ease;
+}
+
+@keyframes plugin-tregoplugins-dispatch-reveal {
+    from {
+        transform: translateY(-6px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
