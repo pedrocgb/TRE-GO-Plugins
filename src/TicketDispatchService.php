@@ -38,6 +38,12 @@ class PluginTregopluginsTicketDispatchService
         ) {
             $item->input['_itil_assign']['groups_id'] = $default_group_id;
         }
+
+        // Forcing a technician group would otherwise make GLPI auto-bump a
+        // "new" ticket to "assigned" (see CommonITILObject::updateActors()).
+        // _do_not_compute_status blocks that so the configured status wins.
+        $item->input['status'] = PluginTregopluginsTicketDispatchConfig::getCreationStatus();
+        $item->input['_do_not_compute_status'] = true;
     }
 
     /**

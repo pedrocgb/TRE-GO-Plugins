@@ -67,6 +67,17 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
     }
 
     /**
+     * Status forced on every newly created ticket when its technician group
+     * gets overridden to the default. Defaults to Ticket::INCOMING ("New").
+     */
+    public static function getCreationStatus(): int
+    {
+        $status = (int) (self::getConfig()['creation_status'] ?? 0);
+
+        return isset(Ticket::getAllStatusArray()[$status]) ? $status : Ticket::INCOMING;
+    }
+
+    /**
      * Whether the module is enabled AND its configured default group is
      * still a valid, active, assignable group. Fails safe: any doubt means
      * "not runnable" rather than risking a partial/incorrect ticket write.
@@ -123,8 +134,14 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
             return false;
         }
 
+        $creation_status = (int) ($input['creation_status'] ?? $this->fields['creation_status'] ?? Ticket::INCOMING);
+        if (!isset(Ticket::getAllStatusArray()[$creation_status])) {
+            $creation_status = Ticket::INCOMING;
+        }
+
         $input['enabled'] = $enabled ? 1 : 0;
         $input['groups_id'] = $groups_id;
+        $input['creation_status'] = $creation_status;
 
         return $input;
     }
@@ -142,15 +159,26 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
             $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
             $query = "CREATE TABLE `" . self::TABLE . "` (
-                `id`         int {$default_key_sign} NOT NULL AUTO_INCREMENT,
-                `enabled`    tinyint NOT NULL DEFAULT 0,
-                `groups_id`  int {$default_key_sign} NOT NULL DEFAULT 0,
+                `id`               int {$default_key_sign} NOT NULL AUTO_INCREMENT,
+                `enabled`          tinyint NOT NULL DEFAULT 0,
+                `groups_id`        int {$default_key_sign} NOT NULL DEFAULT 0,
+                `creation_status`  int NOT NULL DEFAULT " . Ticket::INCOMING . ",
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=" . DBConnection::getDefaultCharset() . "
                 COLLATE=" . DBConnection::getDefaultCollation() . " ROW_FORMAT=DYNAMIC;";
 
             $DB->doQueryOrDie($query, 'Create ' . self::TABLE);
-            $DB->insert(self::TABLE, ['id' => self::CONFIG_ID, 'enabled' => 0, 'groups_id' => 0]);
+            $DB->insert(self::TABLE, [
+                'id'              => self::CONFIG_ID,
+                'enabled'         => 0,
+                'groups_id'       => 0,
+                'creation_status' => Ticket::INCOMING,
+            ]);
+        } elseif (!$DB->fieldExists(self::TABLE, 'creation_status')) {
+            $DB->doQueryOrDie(
+                "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `creation_status` int NOT NULL DEFAULT " . Ticket::INCOMING,
+                'Add creation_status to ' . self::TABLE
+            );
         }
 
         return true;
@@ -219,6 +247,17 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
             ]);
         } else {
             echo "<div>" . Dropdown::getDropdownName(Group::getTable(), $config['groups_id']) . "</div>";
+        }
+        echo "</div>";
+
+        echo "<div class='mb-3'>";
+        echo "<label class='form-label d-flex align-items-center' for='dropdown_creation_status'>"
+            . PluginTregopluginsIcon::html('circle-dot', 16, 'me-1')
+            . __('Status inicial dos chamados criados', 'tregoplugins') . "</label>";
+        if ($canedit) {
+            Ticket::dropdownStatus(['value' => $config['creation_status'] ?? Ticket::INCOMING, 'name' => 'creation_status']);
+        } else {
+            echo "<div>" . Ticket::getStatus((int) ($config['creation_status'] ?? Ticket::INCOMING)) . "</div>";
         }
         echo "</div>";
 
