@@ -50,21 +50,40 @@ require_once __DIR__ . '/src/OlaReportProfile.php';
 require_once __DIR__ . '/src/OlaReportRepository.php';
 require_once __DIR__ . '/src/SolutionForm.php';
 require_once __DIR__ . '/src/TicketAutomation.php';
+require_once __DIR__ . '/src/TicketDispatchConfig.php';
+require_once __DIR__ . '/src/TicketDispatchProfile.php';
+require_once __DIR__ . '/src/TicketDispatchRuleReplay.php';
+require_once __DIR__ . '/src/TicketDispatchEligibility.php';
+require_once __DIR__ . '/src/TicketDispatchService.php';
+require_once __DIR__ . '/src/TicketDispatchTimelineAction.php';
 
 /**
  * Init hooks of the plugin.
  */
 function plugin_init_tregoplugins(): void
 {
-    global $PLUGIN_HOOKS;
+    global $DB, $PLUGIN_HOOKS;
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::CSRF_COMPLIANT]['tregoplugins'] = true;
-    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['tregoplugins'] = [
-        'public/tregoplugins.css',
-        'public/ola-report.css',
-    ];
-    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['tregoplugins']
-        = 'public/tregoplugins-ticket-list.js';
+
+    // "Disabled means not called": the ticket-dispatch runtime hooks and
+    // assets are only registered when the module is turned on in Setup, so
+    // a disabled module has zero footprint in the ticket creation/timeline
+    // code paths. Guarded by tableExists() because plugin_init can run
+    // before this module's install() has created its config table.
+    $ticket_dispatch_enabled = $DB instanceof DBmysql
+        && $DB->tableExists(PluginTregopluginsTicketDispatchConfig::TABLE)
+        && PluginTregopluginsTicketDispatchConfig::isEnabled();
+
+    $css_files = ['public/tregoplugins.css', 'public/ola-report.css'];
+    $js_files  = ['public/tregoplugins-ticket-list.js'];
+    if ($ticket_dispatch_enabled) {
+        $css_files[] = 'public/css/ticket-dispatch.css';
+        $js_files[]  = 'public/js/ticket-dispatch.js';
+    }
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['tregoplugins'] = $css_files;
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['tregoplugins'] = $js_files;
+
     $PLUGIN_HOOKS['menu_toadd']['tregoplugins'] = [
         'management' => [PluginTregopluginsOlaReport::class],
     ];
@@ -81,6 +100,21 @@ function plugin_init_tregoplugins(): void
         PluginTregopluginsKbVisibilityConfig::class,
         ['addtabon' => Config::class]
     );
+    Plugin::registerClass(
+        PluginTregopluginsTicketDispatchProfile::class,
+        ['addtabon' => Profile::class]
+    );
+    Plugin::registerClass(
+        PluginTregopluginsTicketDispatchConfig::class,
+        ['addtabon' => Config::class]
+    );
+
+    if ($ticket_dispatch_enabled) {
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_PREPAREADD]['tregoplugins']['Ticket']
+            = 'plugin_tregoplugins_on_ticket_dispatch_post_prepareadd';
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::TIMELINE_ACTIONS]['tregoplugins']
+            = [PluginTregopluginsTicketDispatchTimelineAction::class, 'render'];
+    }
 
     // Runtime workaround for the GLPI KnowbaseItem visibility bug (see
     // src/KbVisibilityGuard.php for the full explanation).
@@ -119,6 +153,11 @@ function plugin_init_tregoplugins(): void
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_ITEM_FORM]['tregoplugins']
         = [PluginTregopluginsCategoryForm::class, 'postItemForm'];
+}
+
+function plugin_tregoplugins_on_ticket_dispatch_post_prepareadd(CommonDBTM $item): void
+{
+    PluginTregopluginsTicketDispatchService::normalizeGroupOnCreation($item);
 }
 
 function plugin_tregoplugins_on_ticket_add(CommonDBTM $item): void
@@ -197,12 +236,20 @@ function plugin_tregoplugins_do_install(): bool
     PluginTregopluginsOlaReportRepository::install();
     PluginTregopluginsOlaReport::installRights();
     PluginTregopluginsKbVisibilityConfig::installRights();
+    PluginTregopluginsTicketDispatchConfig::install();
+    PluginTregopluginsTicketDispatchService::install();
+    PluginTregopluginsTicketDispatchConfig::installRights();
+    PluginTregopluginsTicketDispatchProfile::installRights();
 
     return true;
 }
 
 function plugin_tregoplugins_do_uninstall(): bool
 {
+    PluginTregopluginsTicketDispatchProfile::uninstallRights();
+    PluginTregopluginsTicketDispatchConfig::uninstallRights();
+    PluginTregopluginsTicketDispatchService::uninstall();
+    PluginTregopluginsTicketDispatchConfig::uninstall();
     PluginTregopluginsKbVisibilityConfig::uninstallRights();
     PluginTregopluginsOlaReport::uninstallRights();
     PluginTregopluginsOlaReportRepository::uninstall();

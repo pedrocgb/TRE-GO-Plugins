@@ -1,0 +1,13 @@
+.plugin-tregoplugins-dispatch-btn {
+    display: inline-flex;
+    align-items: center;
+}
+
+.plugin-tregoplugins-dispatch-icon {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.plugin-tregoplugins-dispatch-btn:disabled .plugin-tregoplugins-dispatch-icon {
+    opacity: 0.5;
+}
