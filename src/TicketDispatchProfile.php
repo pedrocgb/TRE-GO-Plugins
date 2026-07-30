@@ -1,14 +1,11 @@
 <?php
 
 /**
- * TRE-GO profile tab exposing the two ticket-dispatch rights:
- * - plugin_tregoplugins_ticketdispatch: view/edit the module's Setup config.
- * - plugin_tregoplugins_ticketdispatch_action: see and use the "Despachar
- *   chamado para Unidade Responsável" timeline button.
- *
- * Kept as its own class (rather than folded into TicketDispatchConfig) so
- * both rights share one seeding helper and one profile matrix, matching the
- * existing plugin convention of one *Profile class per feature.
+ * Rights helper for the ticket-dispatch action right
+ * (plugin_tregoplugins_ticketdispatch_action: see/use the "Despachar
+ * chamado para Unidade Responsável" timeline button). The right is
+ * displayed in the single shared "TRE-GO" profile tab owned by
+ * PluginTregopluginsMainProfile, not by this class.
  */
 class PluginTregopluginsTicketDispatchProfile extends CommonDBTM
 {
@@ -17,68 +14,6 @@ class PluginTregopluginsTicketDispatchProfile extends CommonDBTM
     public static function getTypeName($nb = 0): string
     {
         return __('Despacho de chamados', 'tregoplugins');
-    }
-
-    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
-    {
-        if ($item instanceof Profile && $item->getID() > 0) {
-            return self::createTabEntry('TRE-GO');
-        }
-
-        return '';
-    }
-
-    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
-    {
-        if (!$item instanceof Profile || $item->getID() <= 0) {
-            return true;
-        }
-
-        $profile = new Profile();
-        if (!$profile->can($item->getID(), READ)) {
-            return true;
-        }
-
-        $can_edit = Session::haveRight(Profile::$rightname, UPDATE);
-
-        echo "<div class='spaced'>";
-        if ($can_edit) {
-            echo "<form method='post' action='" . Html::entities_deep(Profile::getFormURL()) . "'>";
-        }
-
-        $rights = [
-            [
-                'itemtype' => PluginTregopluginsTicketDispatchConfig::class,
-                'label'    => __('Configurar o módulo de despacho de chamados (Setup)', 'tregoplugins'),
-                'field'    => PluginTregopluginsTicketDispatchConfig::$rightname,
-                'rights'   => [READ => __('Read'), UPDATE => __('Update')],
-            ],
-            [
-                'itemtype' => self::class,
-                'label'    => __('Permissão para ver o botão "Despachar chamado para Unidade Responsável"', 'tregoplugins'),
-                'field'    => self::ACTION_RIGHTNAME,
-                'rights'   => [READ => __('Read')],
-            ],
-        ];
-
-        $profile->displayRightsChoiceMatrix(
-            $rights,
-            [
-                'canedit' => $can_edit,
-                'title'   => 'TRE-GO - ' . self::getTypeName(),
-            ]
-        );
-
-        if ($can_edit) {
-            echo "<div class='text-center'>";
-            echo Html::hidden('id', ['value' => $item->getID()]);
-            echo Html::submit(_sx('button', 'Save'), ['name' => 'update']);
-            echo "</div>";
-            Html::closeForm();
-        }
-        echo "</div>";
-
-        return true;
     }
 
     public static function canUseDispatchAction(): bool

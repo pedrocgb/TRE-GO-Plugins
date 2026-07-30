@@ -1,10 +1,16 @@
 <?php
 
-class PluginTregopluginsOlaReportProfile extends CommonDBTM
+/**
+ * The single "TRE-GO" tab on GLPI Profiles. Every module's right belongs in
+ * this one matrix (Relatório OLA, Base de Conhecimento, Despacho de
+ * chamados) instead of each module registering its own same-named tab,
+ * which used to render as three separate "TRE-GO" tabs.
+ */
+class PluginTregopluginsMainProfile extends CommonDBTM
 {
     public static function getTypeName($nb = 0): string
     {
-        return 'Relatório OLA';
+        return 'TRE-GO';
     }
 
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
@@ -41,13 +47,31 @@ class PluginTregopluginsOlaReportProfile extends CommonDBTM
                 'field'    => PluginTregopluginsOlaReport::$rightname,
                 'rights'   => [READ => __('Read')],
             ],
+            [
+                'itemtype' => PluginTregopluginsKbVisibilityConfig::class,
+                'label'    => 'Permitir gerenciar a "Correção de Visibilidade da Base de Conhecimento"',
+                'field'    => PluginTregopluginsKbVisibilityConfig::$rightname,
+                'rights'   => [READ => __('Read'), UPDATE => __('Update')],
+            ],
+            [
+                'itemtype' => PluginTregopluginsTicketDispatchConfig::class,
+                'label'    => __('Configurar o módulo de despacho de chamados (Setup)', 'tregoplugins'),
+                'field'    => PluginTregopluginsTicketDispatchConfig::$rightname,
+                'rights'   => [READ => __('Read'), UPDATE => __('Update')],
+            ],
+            [
+                'itemtype' => PluginTregopluginsTicketDispatchProfile::class,
+                'label'    => __('Permissão para ver o botão "Despachar chamado para Unidade Responsável"', 'tregoplugins'),
+                'field'    => PluginTregopluginsTicketDispatchProfile::ACTION_RIGHTNAME,
+                'rights'   => [READ => __('Read')],
+            ],
         ];
 
         $profile->displayRightsChoiceMatrix(
             $rights,
             [
                 'canedit' => $can_edit,
-                'title'   => 'TRE-GO - Relatório OLA',
+                'title'   => 'TRE-GO',
             ]
         );
 

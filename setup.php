@@ -42,12 +42,12 @@ require_once __DIR__ . '/src/CategoryConfig.php';
 require_once __DIR__ . '/src/CategoryForm.php';
 require_once __DIR__ . '/src/KbVisibilityConfig.php';
 require_once __DIR__ . '/src/KbVisibilityGuard.php';
-require_once __DIR__ . '/src/KbVisibilityProfile.php';
+require_once __DIR__ . '/src/MainProfile.php';
 require_once __DIR__ . '/src/OlaBusinessTimeService.php';
 require_once __DIR__ . '/src/OlaProgressService.php';
 require_once __DIR__ . '/src/OlaReport.php';
-require_once __DIR__ . '/src/OlaReportProfile.php';
 require_once __DIR__ . '/src/OlaReportRepository.php';
+require_once __DIR__ . '/src/SetupMenu.php';
 require_once __DIR__ . '/src/SolutionForm.php';
 require_once __DIR__ . '/src/TicketAutomation.php';
 require_once __DIR__ . '/src/TicketDispatchConfig.php';
@@ -86,27 +86,16 @@ function plugin_init_tregoplugins(): void
 
     $PLUGIN_HOOKS['menu_toadd']['tregoplugins'] = [
         'management' => [PluginTregopluginsOlaReport::class],
+        'config'      => [PluginTregopluginsSetupMenu::class],
     ];
 
+    // Single shared "TRE-GO" profile tab: every module's right is a row in
+    // PluginTregopluginsMainProfile's matrix, instead of each module
+    // registering its own same-named tab (which used to render as three
+    // separate "TRE-GO" tabs).
     Plugin::registerClass(
-        PluginTregopluginsOlaReportProfile::class,
+        PluginTregopluginsMainProfile::class,
         ['addtabon' => Profile::class]
-    );
-    Plugin::registerClass(
-        PluginTregopluginsKbVisibilityProfile::class,
-        ['addtabon' => Profile::class]
-    );
-    Plugin::registerClass(
-        PluginTregopluginsKbVisibilityConfig::class,
-        ['addtabon' => Config::class]
-    );
-    Plugin::registerClass(
-        PluginTregopluginsTicketDispatchProfile::class,
-        ['addtabon' => Profile::class]
-    );
-    Plugin::registerClass(
-        PluginTregopluginsTicketDispatchConfig::class,
-        ['addtabon' => Config::class]
     );
 
     if ($ticket_dispatch_enabled) {
@@ -280,7 +269,7 @@ function plugin_tregoplugins_do_uninstall(): bool
 function plugin_version_tregoplugins(): array
 {
     return [
-        'name'         => 'Automacao TRE-GO para Categorias ITIL',
+        'name'         => 'TRE-GO Master Plugin',
         'version'      => PLUGIN_TREGOPLUGINS_VERSION,
         'author'       => 'Pedro Henrique Cesar',
         'license'      => 'MIT',
