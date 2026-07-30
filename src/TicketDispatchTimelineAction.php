@@ -33,7 +33,8 @@ class PluginTregopluginsTicketDispatchTimelineAction
         }
 
         $eligibility = PluginTregopluginsTicketDispatchEligibility::evaluate($item);
-        $label = __('Despachar chamado para Unidade Responsável', 'tregoplugins');
+        $label = __('Despachar Chamado', 'tregoplugins');
+        $full_label = __('Despachar chamado para Unidade Responsável', 'tregoplugins');
         $icon = PluginTregopluginsIcon::html('forward', 16, 'me-1');
         $form_url = Plugin::getWebDir('tregoplugins') . '/front/ticketdispatch.form.php';
 
@@ -47,7 +48,7 @@ class PluginTregopluginsTicketDispatchTimelineAction
         $attributes = [
             'type'  => $eligibility['allowed'] ? 'button' : 'submit',
             'class' => 'btn btn-warning mb-2 plugin-tregoplugins-dispatch-btn',
-            'title' => $eligibility['allowed'] ? $label : $eligibility['reason_label'],
+            'title' => $eligibility['allowed'] ? $full_label : $eligibility['reason_label'],
         ];
         if (!$eligibility['allowed']) {
             $attributes['disabled'] = 'disabled';
@@ -61,10 +62,14 @@ class PluginTregopluginsTicketDispatchTimelineAction
         echo "</form>";
 
         if ($eligibility['allowed']) {
+            $group_names = array_map(
+                static fn(int $groups_id): string => Dropdown::getDropdownName(Group::getTable(), $groups_id),
+                $eligibility['calculated_group_ids']
+            );
+            $confirm_text = sprintf(__('Enviar para %s?', 'tregoplugins'), implode(', ', $group_names));
+
             echo "<div class='plugin-tregoplugins-dispatch-confirm'>";
-            echo "<span class='plugin-tregoplugins-dispatch-confirm-text'>"
-                . __('O chamado será reavaliado pelas regras de abertura e movido para a unidade responsável calculada. Deseja continuar?', 'tregoplugins')
-                . "</span>";
+            echo "<span class='plugin-tregoplugins-dispatch-confirm-text'>" . Html::entities_deep($confirm_text) . "</span>";
             echo "<button type='button' class='btn btn-success btn-sm plugin-tregoplugins-dispatch-yes'>" . __('Sim', 'tregoplugins') . "</button>";
             echo "<button type='button' class='btn btn-secondary btn-sm plugin-tregoplugins-dispatch-no'>" . __('Não', 'tregoplugins') . "</button>";
             echo "</div>";

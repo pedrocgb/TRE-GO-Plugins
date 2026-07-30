@@ -19,29 +19,33 @@ li.plugin-tregoplugins-dispatch-action {
     opacity: 0.65;
 }
 
-/* Button <-> confirm prompt swap: both occupy the same grid cell so the
- * slot auto-sizes to the wider of the two, then slide vertically past
- * each other, masked by overflow:hidden, so the prompt visually arrives
- * from the exact spot the button just slid out of. */
+/* Button <-> confirm prompt swap. The form is the only element kept in
+ * normal flow, so the slot's box (height in particular, to match the
+ * Answer button exactly) is sized purely by the button itself. The
+ * confirm prompt is absolutely positioned on top of that same spot and
+ * never affects the slot's own size; overflow is only masked on the
+ * vertical axis so the (wider) prompt isn't clipped horizontally. */
 .plugin-tregoplugins-dispatch-slot {
     position: relative;
-    display: inline-grid;
-    overflow: hidden;
+    display: inline-block;
+    overflow-x: visible;
+    overflow-y: hidden;
 }
 
-.plugin-tregoplugins-dispatch-form,
-.plugin-tregoplugins-dispatch-confirm {
-    grid-column: 1;
-    grid-row: 1;
+.plugin-tregoplugins-dispatch-form {
+    display: inline-flex;
     transition: transform 0.22s ease, opacity 0.22s ease;
 }
 
 .plugin-tregoplugins-dispatch-confirm {
+    position: absolute;
+    top: 0;
+    left: 0;
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     white-space: nowrap;
-    margin-bottom: 0.5rem;
+    transition: transform 0.22s ease, opacity 0.22s ease;
     transform: translateY(-100%);
     opacity: 0;
     pointer-events: none;
