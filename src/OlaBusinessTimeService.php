@@ -53,17 +53,37 @@ class PluginTregopluginsOlaBusinessTimeService
 
     public static function getOlaDurationSeconds(Ticket $ticket): int
     {
+        $ola = self::getTicketOla($ticket);
+
+        return $ola !== null ? max(0, (int) $ola->getTime()) : 0;
+    }
+
+    /**
+     * Whether the ticket's OLA TTO is configured to round its due date to
+     * the end of a working day rather than adding the duration
+     * proportionally from the start date (LevelAgreement::end_of_working_day).
+     * Short OLAs (e.g. 1h) combined with this flag produce a due date that
+     * looks fixed/detached from the actual start time -- that is GLPI core
+     * behavior, not a bug, but this plugin's own due-date recomputation
+     * must honor it too or it will silently diverge from what the OLA was
+     * configured to do.
+     */
+    public static function isEndOfWorkingDay(Ticket $ticket): bool
+    {
+        $ola = self::getTicketOla($ticket);
+
+        return $ola !== null && (bool) ($ola->fields['end_of_working_day'] ?? false);
+    }
+
+    private static function getTicketOla(Ticket $ticket): ?OLA
+    {
         $ola_id = (int) ($ticket->fields['olas_id_tto'] ?? 0);
         if ($ola_id <= 0) {
-            return 0;
+            return null;
         }
 
         $ola = new OLA();
-        if (!$ola->getFromDB($ola_id)) {
-            return 0;
-        }
-
-        return max(0, (int) $ola->getTime());
+        return $ola->getFromDB($ola_id) ? $ola : null;
     }
 
     public static function computeDueDate(Ticket $ticket, string $start_date, int $group_id = 0): ?string
@@ -73,12 +93,17 @@ class PluginTregopluginsOlaBusinessTimeService
             return null;
         }
 
+        $end_of_working_day = self::isEndOfWorkingDay($ticket);
+
         $calendar = self::getCalendarForTicketGroup($ticket, $group_id);
         if ($calendar instanceof Calendar) {
-            $due_date = $calendar->computeEndDate($start_date, $duration);
+            $due_date = $calendar->computeEndDate($start_date, $duration, 0, false, $end_of_working_day);
             return is_string($due_date) && $due_date !== '' ? self::normalizeDatetime($due_date) : null;
         }
 
+        // No calendar resolved for this group: nothing to round to, so fall
+        // back to the plain proportional calculation regardless of the
+        // end_of_working_day flag.
         return self::normalizeDatetime(date('Y-m-d H:i:s', strtotime($start_date) + $duration));
     }
 

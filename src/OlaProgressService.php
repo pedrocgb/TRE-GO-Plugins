@@ -162,11 +162,38 @@ HTML;
 
     private static function resolveStatusLabel(Ticket $ticket, int $percentage): ?string
     {
-        if (self::resolveAssignmentPauseDate($ticket) === null) {
-            return null;
+        // Already taken into account: that state always wins over the
+        // calendar-pause label below, whether the clock is currently inside
+        // or outside working hours.
+        if (self::resolveAssignmentPauseDate($ticket) !== null) {
+            return $percentage >= 100 ? 'Atrasado' : 'Atribuído';
         }
 
-        return $percentage >= 100 ? 'Atrasado' : 'Atribuído';
+        if (self::isOutsideWorkingHours($ticket)) {
+            return 'Em Pausa: fora do horário de serviço';
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether the group currently assigned to the ticket is, right now,
+     * outside its resolved calendar's working hours -- i.e. the OLA TTO
+     * clock is effectively paused. Uses the same group/calendar resolution
+     * as the due-date computation, so this always reflects whichever group
+     * and calendar are currently in effect (including right after a
+     * dispatch/escalation resets the OLA cycle).
+     */
+    private static function isOutsideWorkingHours(Ticket $ticket): bool
+    {
+        $group_id = PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId((int) $ticket->getID());
+        $calendar = PluginTregopluginsOlaBusinessTimeService::getCalendarForTicketGroup($ticket, $group_id);
+
+        if (!$calendar instanceof Calendar) {
+            return false;
+        }
+
+        return !$calendar->isAWorkingHour(time());
     }
 
     private static function isClosedStatus(int $status): bool

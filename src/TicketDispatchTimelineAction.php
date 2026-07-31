@@ -60,7 +60,7 @@ class PluginTregopluginsTicketDispatchTimelineAction
 
         $attributes = [
             'type'  => $eligibility['allowed'] ? 'button' : 'submit',
-            'class' => 'btn btn-warning mb-2 plugin-tregoplugins-dispatch-btn',
+            'class' => 'btn btn-primary mb-2 plugin-tregoplugins-dispatch-btn',
             'title' => $eligibility['allowed'] ? $full_label : $eligibility['reason_label'],
         ];
         if (!$eligibility['allowed']) {
