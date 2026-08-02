@@ -256,20 +256,12 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
             . PluginTregopluginsIcon::html('forward', 16, 'me-1')
             . __('Regra de Atendimento Inicial', 'tregoplugins') . "</label>";
         if ($canedit) {
-            // Rule::dropdown() only filters by sub_type/condition, not
-            // is_active: GLPI ships several inactive ONADD RuleTicket rules
-            // out of the box, and picking one here would silently fail
-            // isRuleValid() on save (the field reverts to empty with just a
-            // flash message). Filter is_active here so every listed choice
-            // is actually savable.
-            Dropdown::show('RuleTicket', [
+            Rule::dropdown([
+                'sub_type'  => 'RuleTicket',
                 'name'      => 'initial_rule_id',
                 'value'     => $config['initial_rule_id'],
+                'condition' => RuleTicket::ONADD,
                 'entity'    => $_SESSION['glpiactive_entity'] ?? 0,
-                'condition' => [
-                    'is_active' => 1,
-                    'condition' => ['&', RuleTicket::ONADD],
-                ],
             ]);
         } else {
             echo "<div>" . Dropdown::getDropdownName(RuleTicket::getTable(), $config['initial_rule_id']) . "</div>";
