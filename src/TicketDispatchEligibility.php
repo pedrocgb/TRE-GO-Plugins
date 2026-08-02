@@ -1,11 +1,11 @@
 <?php
 
 /**
- * Server-side eligibility calculation for the "Despachar Chamado" timeline
- * action. The exact same result powers both the button's visible/disabled
- * state and the dispatch endpoint's own authorization check, so a button can
- * never be more permissive than the server (and the server never trusts what
- * the button showed).
+ * Server-side eligibility calculation for the "Despachar chamado para
+ * Unidade Responsável" timeline action. The exact same result powers both
+ * the button's visible/disabled state and the dispatch endpoint's own
+ * authorization check, so a button can never be more permissive than the
+ * server (and the server never trusts what the button showed).
  */
 class PluginTregopluginsTicketDispatchEligibility
 {
@@ -14,9 +14,10 @@ class PluginTregopluginsTicketDispatchEligibility
     public const NO_PERMISSION = 'no_permission';
     public const TICKET_NOT_ACCESSIBLE = 'ticket_not_accessible';
     public const TICKET_CLOSED_OR_DELETED = 'ticket_closed_or_deleted';
-    public const ALREADY_DISPATCHED = 'already_dispatched';
+    public const NOT_IN_DEFAULT_UNIT = 'not_in_default_unit';
     public const NO_CATEGORY = 'no_category';
     public const NO_APPLICABLE_RULE = 'no_applicable_rule';
+    public const ALREADY_RESPONSIBLE_UNIT = 'already_responsible_unit';
     public const INVALID_CALCULATED_GROUP = 'invalid_calculated_group';
 
     /**
@@ -56,14 +57,15 @@ class PluginTregopluginsTicketDispatchEligibility
             return self::result(false, self::TICKET_CLOSED_OR_DELETED, [], [], []);
         }
 
+        $default_group_id = PluginTregopluginsTicketDispatchConfig::getDefaultGroupId();
         $current_group_ids = array_values(array_map(
             static fn(array $row): int => (int) $row['groups_id'],
             $ticket->getGroups(CommonITILActor::ASSIGN)
         ));
         sort($current_group_ids);
 
-        if (PluginTregopluginsTicketDispatchService::hasBeenDispatched($ticket_id)) {
-            return self::result(false, self::ALREADY_DISPATCHED, $current_group_ids, [], []);
+        if ($current_group_ids !== [$default_group_id]) {
+            return self::result(false, self::NOT_IN_DEFAULT_UNIT, $current_group_ids, [], []);
         }
 
         if ((int) ($ticket->fields['itilcategories_id'] ?? 0) <= 0) {
@@ -82,8 +84,12 @@ class PluginTregopluginsTicketDispatchEligibility
             return self::result(false, self::NO_APPLICABLE_RULE, $current_group_ids, $calculated_group_ids, $matched_rule_ids);
         }
 
+        if ($calculated_group_ids === [$default_group_id]) {
+            return self::result(false, self::ALREADY_RESPONSIBLE_UNIT, $current_group_ids, $calculated_group_ids, $matched_rule_ids);
+        }
+
         foreach ($calculated_group_ids as $group_id) {
-            if (!self::isGroupAssignable($group_id)) {
+            if (!PluginTregopluginsTicketDispatchConfig::isGroupAssignable($group_id)) {
                 return self::result(false, self::INVALID_CALCULATED_GROUP, $current_group_ids, $calculated_group_ids, $matched_rule_ids);
             }
         }
@@ -99,27 +105,14 @@ class PluginTregopluginsTicketDispatchEligibility
             self::NO_PERMISSION                => __('Sem permissão para despachar chamados.', 'tregoplugins'),
             self::TICKET_NOT_ACCESSIBLE        => __('Sem permissão para visualizar/atribuir este chamado.', 'tregoplugins'),
             self::TICKET_CLOSED_OR_DELETED     => __('Chamado encerrado ou excluído.', 'tregoplugins'),
-            self::ALREADY_DISPATCHED           => __('Chamado já foi despachado.', 'tregoplugins'),
+            self::NOT_IN_DEFAULT_UNIT          => __('Chamado não está exclusivamente na unidade padrão.', 'tregoplugins'),
             self::NO_CATEGORY                  => __('Chamado sem categoria.', 'tregoplugins'),
             self::NO_APPLICABLE_RULE           => __('Nenhuma regra de unidade responsável aplicável.', 'tregoplugins'),
+            self::ALREADY_RESPONSIBLE_UNIT     => __('A unidade responsável já é a unidade padrão.', 'tregoplugins'),
             self::INVALID_CALCULATED_GROUP     => __('A unidade calculada não é válida para este chamado.', 'tregoplugins'),
         ];
 
         return $labels[$reason_code] ?? $reason_code;
-    }
-
-    private static function isGroupAssignable(int $groups_id): bool
-    {
-        if ($groups_id <= 0) {
-            return false;
-        }
-
-        $group = new Group();
-        if (!$group->getFromDB($groups_id)) {
-            return false;
-        }
-
-        return (int) ($group->fields['is_assign'] ?? 0) === 1;
     }
 
     /**

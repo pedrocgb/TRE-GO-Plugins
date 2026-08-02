@@ -100,8 +100,8 @@ function plugin_init_tregoplugins(): void
     );
 
     if ($ticket_dispatch_enabled) {
-        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_ADD]['tregoplugins']['Ticket']
-            = 'plugin_tregoplugins_on_ticket_dispatch_pre_add';
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_PREPAREADD]['tregoplugins']['Ticket']
+            = 'plugin_tregoplugins_on_ticket_dispatch_post_prepareadd';
         $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::TIMELINE_ACTIONS]['tregoplugins']
             = [PluginTregopluginsTicketDispatchTimelineAction::class, 'render'];
     }
@@ -145,9 +145,9 @@ function plugin_init_tregoplugins(): void
         = [PluginTregopluginsCategoryForm::class, 'postItemForm'];
 }
 
-function plugin_tregoplugins_on_ticket_dispatch_pre_add(CommonDBTM $item): void
+function plugin_tregoplugins_on_ticket_dispatch_post_prepareadd(CommonDBTM $item): void
 {
-    PluginTregopluginsTicketDispatchService::applyInitialRuleOnCreation($item);
+    PluginTregopluginsTicketDispatchService::normalizeGroupOnCreation($item);
 }
 
 function plugin_tregoplugins_on_ticket_add(CommonDBTM $item): void
