@@ -70,6 +70,14 @@ class PluginTregopluginsTicketDispatchService
         $mapped['_skip_rules'] = true;
         $mapped['_dispatch_by_tregoplugins'] = true;
 
+        // Adding/replacing an assign-type actor would otherwise make GLPI
+        // auto-bump the ticket's status (see CommonITILObject::updateActors()),
+        // overriding whatever status the ticket already had (e.g. the
+        // configured creation status). _do_not_compute_status blocks that;
+        // an explicit 'status' action from the replayed rule (if any) is
+        // still applied normally since it's a plain field in $mapped.
+        $mapped['_do_not_compute_status'] = true;
+
         $DB->beginTransaction();
 
         try {
