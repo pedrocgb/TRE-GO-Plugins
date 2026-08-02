@@ -2,18 +2,19 @@
 
 /**
  * Orchestrates the two runtime behaviors of the ticket dispatch module:
- * - normalizeGroupOnCreation(): called from the Ticket post_prepareadd
- *   hook, forces every newly created ticket's technician group to the
- *   configured default without touching any other rule result.
- * - dispatch(): called from the POST endpoint, replays creation-time rules
- *   without that suppression and applies only the mapped, supported
- *   mutations through one transactional Ticket::update().
+ * - applyInitialRuleOnCreation(): called from the Ticket pre_item_add hook
+ *   (before prepareInputForAdd runs), bypasses GLPI's normal RuleTicket
+ *   ONADD engine for the new ticket and evaluates only the single
+ *   configured "Regra de Atendimento Inicial" rule against it instead.
+ * - dispatch(): called from the POST endpoint, replays the ticket's full,
+ *   normal rule set (all active ONADD rules) and applies only the mapped,
+ *   supported mutations through one transactional Ticket::update().
  */
 class PluginTregopluginsTicketDispatchService
 {
     public const AUDIT_TABLE = 'glpi_plugin_tregoplugins_ticketdispatchlogs';
 
-    public static function normalizeGroupOnCreation(CommonDBTM $item): void
+    public static function applyInitialRuleOnCreation(CommonDBTM $item): void
     {
         if (!$item instanceof Ticket) {
             return;
@@ -27,23 +28,91 @@ class PluginTregopluginsTicketDispatchService
             return;
         }
 
-        $default_group_id = PluginTregopluginsTicketDispatchConfig::getDefaultGroupId();
-
-        unset($item->input['_groups_id_assign'], $item->input['_additional_groups_assigns']);
-        $item->input['_groups_id_assign'] = $default_group_id;
-
-        if (
-            isset($item->input['_itil_assign']['_type'])
-            && $item->input['_itil_assign']['_type'] === 'group'
-        ) {
-            $item->input['_itil_assign']['groups_id'] = $default_group_id;
+        $rule = new RuleTicket();
+        $rule_id = PluginTregopluginsTicketDispatchConfig::getInitialRuleId();
+        if (!$rule->getRuleWithCriteriasAndActions($rule_id, true, true)) {
+            return;
         }
 
-        // Forcing a technician group would otherwise make GLPI auto-bump a
-        // "new" ticket to "assigned" (see CommonITILObject::updateActors()).
-        // _do_not_compute_status blocks that so the configured status wins.
+        $input = self::buildInitialRuleInput($item->input);
+        $output = $input;
+        $params = ['recursive' => true];
+        $options = ['condition' => RuleTicket::ONADD];
+
+        $rule->process($input, $output, $params, $options);
+        $output = Toolbox::stripslashes_deep($output);
+
+        $replay = new PluginTregopluginsTicketDispatchRuleReplay();
+        $mapped = $replay->mapResult($input, $output);
+
+        foreach ($mapped as $key => $value) {
+            $item->input[$key] = $value;
+        }
+
+        // Forcing an actor via the initial rule would otherwise make GLPI
+        // auto-bump a "new" ticket to "assigned" (see
+        // CommonITILObject::updateActors()). _do_not_compute_status blocks
+        // that so the configured status wins.
         $item->input['status'] = PluginTregopluginsTicketDispatchConfig::getCreationStatus();
         $item->input['_do_not_compute_status'] = true;
+
+        // Bypasses GLPI's normal RuleTicket ONADD engine for this add: only
+        // the single rule evaluated above is allowed to run at creation
+        // time, the ticket's full rule set is applied later via dispatch().
+        $item->input['_skip_rules'] = true;
+    }
+
+    /**
+     * Enriches the raw pre_item_add input with the same, publicly derivable
+     * context Ticket::prepareInputForAdd() feeds its own rule engine
+     * (category code, requester location/default group/profile), so the
+     * initial rule's criteria can match on them. Contract-based criteria are
+     * out of scope here.
+     *
+     * @param array<string, mixed> $raw_input
+     *
+     * @return array<string, mixed>
+     */
+    private static function buildInitialRuleInput(array $raw_input): array
+    {
+        $input = $raw_input;
+        $input['entities_id'] = (int) ($raw_input['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
+
+        if (!empty($input['itilcategories_id'])) {
+            $category = ITILCategory::getById((int) $input['itilcategories_id']);
+            if ($category !== false) {
+                $input['itilcategories_id_code'] = $category->fields['code'] ?? '';
+            }
+        }
+
+        $requester_id = $input['_users_id_requester'] ?? null;
+        if (is_array($requester_id)) {
+            $requester_id = reset($requester_id);
+        }
+
+        if (!empty($requester_id)) {
+            $user = new User();
+            if ($user->getFromDB((int) $requester_id)) {
+                $input['_locations_id_of_requester'] = $user->fields['locations_id'] ?? 0;
+                $input['users_default_groups'] = $user->fields['groups_id'] ?? 0;
+                $input['profiles_id'] = $user->fields['profiles_id'] ?? 0;
+            }
+        }
+
+        return $input;
+    }
+
+    public static function hasBeenDispatched(int $tickets_id): bool
+    {
+        global $DB;
+
+        $result = $DB->request([
+            'COUNT'  => 'cpt',
+            'FROM'   => self::AUDIT_TABLE,
+            'WHERE'  => ['tickets_id' => $tickets_id],
+        ])->current();
+
+        return (int) ($result['cpt'] ?? 0) > 0;
     }
 
     /**

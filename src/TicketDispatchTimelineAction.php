@@ -34,13 +34,11 @@ class PluginTregopluginsTicketDispatchTimelineAction
 
         $eligibility = PluginTregopluginsTicketDispatchEligibility::evaluate($item);
 
-        // Nothing to escalate: the ticket was already dispatched (no longer
-        // solely in the default unit) or the calculated responsible unit is
-        // the default unit itself. Showing a disabled button here would
-        // just be noise, so the action is omitted entirely.
+        // Nothing to escalate: the ticket was already dispatched. Showing a
+        // disabled button here would just be noise, so the action is
+        // omitted entirely.
         $hidden_reasons = [
-            PluginTregopluginsTicketDispatchEligibility::NOT_IN_DEFAULT_UNIT,
-            PluginTregopluginsTicketDispatchEligibility::ALREADY_RESPONSIBLE_UNIT,
+            PluginTregopluginsTicketDispatchEligibility::ALREADY_DISPATCHED,
         ];
         if (!$eligibility['allowed'] && in_array($eligibility['reason_code'], $hidden_reasons, true)) {
             return;

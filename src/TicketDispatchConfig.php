@@ -61,9 +61,9 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
         return (bool) (self::getConfig()['enabled'] ?? false);
     }
 
-    public static function getDefaultGroupId(): int
+    public static function getInitialRuleId(): int
     {
-        return (int) (self::getConfig()['groups_id'] ?? 0);
+        return (int) (self::getConfig()['initial_rule_id'] ?? 0);
     }
 
     /**
@@ -78,27 +78,29 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
     }
 
     /**
-     * Whether the module is enabled AND its configured default group is
-     * still a valid, active, assignable group. Fails safe: any doubt means
-     * "not runnable" rather than risking a partial/incorrect ticket write.
+     * Whether the module is enabled AND its configured initial rule is still
+     * a valid, active RuleTicket with an ONADD condition. Fails safe: any
+     * doubt means "not runnable" rather than risking a partial/incorrect
+     * ticket write.
      */
     public static function isRunnable(): bool
     {
-        return self::isEnabled() && self::isGroupAssignable(self::getDefaultGroupId());
+        return self::isEnabled() && self::isRuleValid(self::getInitialRuleId());
     }
 
-    public static function isGroupAssignable(int $groups_id): bool
+    public static function isRuleValid(int $rules_id): bool
     {
-        if ($groups_id <= 0) {
+        if ($rules_id <= 0) {
             return false;
         }
 
-        $group = new Group();
-        if (!$group->getFromDB($groups_id)) {
+        $rule = new RuleTicket();
+        if (!$rule->getFromDB($rules_id)) {
             return false;
         }
 
-        return (int) ($group->fields['is_assign'] ?? 0) === 1;
+        return (int) ($rule->fields['is_active'] ?? 0) === 1
+            && ((int) ($rule->fields['condition'] ?? 0) & RuleTicket::ONADD) !== 0;
     }
 
     /**
@@ -114,7 +116,7 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
         if ($config->getFromDB(self::CONFIG_ID)) {
             self::$cache = $config->fields;
         } else {
-            self::$cache = ['id' => self::CONFIG_ID, 'enabled' => 0, 'groups_id' => 0];
+            self::$cache = ['id' => self::CONFIG_ID, 'enabled' => 0, 'initial_rule_id' => 0];
         }
 
         return self::$cache;
@@ -123,11 +125,11 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
     public function prepareInputForUpdate($input)
     {
         $enabled = isset($input['enabled']) && (int) $input['enabled'] === 1;
-        $groups_id = (int) ($input['groups_id'] ?? $this->fields['groups_id'] ?? 0);
+        $initial_rule_id = (int) ($input['initial_rule_id'] ?? $this->fields['initial_rule_id'] ?? 0);
 
-        if ($enabled && !self::isGroupAssignable($groups_id)) {
+        if ($enabled && !self::isRuleValid($initial_rule_id)) {
             Session::addMessageAfterRedirect(
-                __('Selecione uma unidade (grupo) ativa e atribuível antes de ativar o despacho de chamados.', 'tregoplugins'),
+                __('Selecione uma Regra de Atendimento Inicial válida e ativa antes de ativar o despacho de chamados.', 'tregoplugins'),
                 false,
                 ERROR
             );
@@ -140,7 +142,7 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
         }
 
         $input['enabled'] = $enabled ? 1 : 0;
-        $input['groups_id'] = $groups_id;
+        $input['initial_rule_id'] = $initial_rule_id;
         $input['creation_status'] = $creation_status;
 
         return $input;
@@ -155,13 +157,13 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
     {
         global $DB;
 
-        if (!$DB->tableExists(self::TABLE)) {
-            $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
+        $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
+        if (!$DB->tableExists(self::TABLE)) {
             $query = "CREATE TABLE `" . self::TABLE . "` (
                 `id`               int {$default_key_sign} NOT NULL AUTO_INCREMENT,
                 `enabled`          tinyint NOT NULL DEFAULT 0,
-                `groups_id`        int {$default_key_sign} NOT NULL DEFAULT 0,
+                `initial_rule_id`  int {$default_key_sign} NOT NULL DEFAULT 0,
                 `creation_status`  int NOT NULL DEFAULT " . Ticket::INCOMING . ",
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=" . DBConnection::getDefaultCharset() . "
@@ -171,14 +173,30 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
             $DB->insert(self::TABLE, [
                 'id'              => self::CONFIG_ID,
                 'enabled'         => 0,
-                'groups_id'       => 0,
+                'initial_rule_id' => 0,
                 'creation_status' => Ticket::INCOMING,
             ]);
-        } elseif (!$DB->fieldExists(self::TABLE, 'creation_status')) {
-            $DB->doQueryOrDie(
-                "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `creation_status` int NOT NULL DEFAULT " . Ticket::INCOMING,
-                'Add creation_status to ' . self::TABLE
-            );
+        } else {
+            if (!$DB->fieldExists(self::TABLE, 'creation_status')) {
+                $DB->doQueryOrDie(
+                    "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `creation_status` int NOT NULL DEFAULT " . Ticket::INCOMING,
+                    'Add creation_status to ' . self::TABLE
+                );
+            }
+
+            if (!$DB->fieldExists(self::TABLE, 'initial_rule_id')) {
+                $DB->doQueryOrDie(
+                    "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `initial_rule_id` int {$default_key_sign} NOT NULL DEFAULT 0",
+                    'Add initial_rule_id to ' . self::TABLE
+                );
+            }
+
+            if ($DB->fieldExists(self::TABLE, 'groups_id')) {
+                $DB->doQueryOrDie(
+                    "ALTER TABLE `" . self::TABLE . "` DROP COLUMN `groups_id`",
+                    'Drop groups_id from ' . self::TABLE
+                );
+            }
         }
 
         return true;
@@ -222,7 +240,7 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
 
         echo "<div class='alert alert-info d-flex align-items-start mb-3'>";
         echo PluginTregopluginsIcon::html('info', 18, 'me-2 mt-1 flex-shrink-0');
-        echo "<div>" . __('Chamados criados por qualquer via (interface, e-mail, API) são movidos para esta unidade após as regras de negócio normais serem executadas. O botão "Despachar chamado para Unidade Responsável" permite reaplicar essas regras manualmente depois.', 'tregoplugins') . "</div>";
+        echo "<div>" . __('Chamados criados por qualquer via (interface, e-mail, API) seguem primeiro a Regra de Atendimento Inicial abaixo, ignorando as demais regras de negócio de chamados. O botão "Despachar Chamado" aplica depois, manualmente, o conjunto completo de regras normalmente configurado.', 'tregoplugins') . "</div>";
         echo "</div>";
 
         echo "<div class='mb-3 form-check form-switch'>";
@@ -234,19 +252,19 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
         echo "</div>";
 
         echo "<div class='mb-3'>";
-        echo "<label class='form-label d-flex align-items-center' for='dropdown_groups_id'>"
-            . PluginTregopluginsIcon::html('building-2', 16, 'me-1')
-            . __('Unidade Padrão dos chamados criados', 'tregoplugins') . "</label>";
+        echo "<label class='form-label d-flex align-items-center' for='dropdown_initial_rule_id'>"
+            . PluginTregopluginsIcon::html('forward', 16, 'me-1')
+            . __('Regra de Atendimento Inicial', 'tregoplugins') . "</label>";
         if ($canedit) {
-            Group::dropdown([
-                'name'      => 'groups_id',
-                'value'     => $config['groups_id'],
-                'condition' => ['is_assign' => 1],
+            Rule::dropdown([
+                'sub_type'  => 'RuleTicket',
+                'name'      => 'initial_rule_id',
+                'value'     => $config['initial_rule_id'],
+                'condition' => RuleTicket::ONADD,
                 'entity'    => $_SESSION['glpiactive_entity'] ?? 0,
-                'entity_sons' => true,
             ]);
         } else {
-            echo "<div>" . Dropdown::getDropdownName(Group::getTable(), $config['groups_id']) . "</div>";
+            echo "<div>" . Dropdown::getDropdownName(RuleTicket::getTable(), $config['initial_rule_id']) . "</div>";
         }
         echo "</div>";
 
