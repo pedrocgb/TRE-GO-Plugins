@@ -242,7 +242,7 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
                 'name'      => 'groups_id',
                 'value'     => $config['groups_id'],
                 'condition' => ['is_assign' => 1],
-                'entity'    => $_SESSION['glpiactive_entity'] ?? 0,
+                'entity'    => 0,
                 'entity_sons' => true,
             ]);
         } else {
