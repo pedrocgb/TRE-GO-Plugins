@@ -39,6 +39,17 @@ class PluginTregopluginsTicketDispatchService
             $item->input['_itil_assign']['groups_id'] = $default_group_id;
         }
 
+        // RuleTicket ONADD already picked an OLA for the ticket's eventual
+        // real group before this hook runs. While the ticket sits in the
+        // default group, its OLA TTO clock must run against the default
+        // group's own OLA instead, or the due date/progress bar reflect a
+        // group the ticket isn't actually in yet. Dispatching later replays
+        // the rules and restores the real OLA (see dispatch()/mapResult()).
+        $default_ola_id = PluginTregopluginsTicketDispatchConfig::getDefaultOlaId();
+        if ($default_ola_id > 0) {
+            $item->input['olas_id_tto'] = $default_ola_id;
+        }
+
         // Forcing a technician group would otherwise make GLPI auto-bump a
         // "new" ticket to "assigned" (see CommonITILObject::updateActors()).
         // _do_not_compute_status blocks that so the configured status wins.

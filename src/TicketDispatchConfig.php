@@ -67,6 +67,16 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
     }
 
     /**
+     * OLA TTO used while a ticket sits in the default group, instead of
+     * whatever OLA RuleTicket picked for its eventual real group. 0 means
+     * "not configured": no override is applied.
+     */
+    public static function getDefaultOlaId(): int
+    {
+        return (int) (self::getConfig()['olas_id_tto'] ?? 0);
+    }
+
+    /**
      * Status forced on every newly created ticket when its technician group
      * gets overridden to the default. Defaults to Ticket::INCOMING ("New").
      */
@@ -101,6 +111,20 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
         return (int) ($group->fields['is_assign'] ?? 0) === 1;
     }
 
+    public static function isOlaValid(int $olas_id): bool
+    {
+        if ($olas_id <= 0) {
+            return false;
+        }
+
+        $ola = new OLA();
+        if (!$ola->getFromDB($olas_id)) {
+            return false;
+        }
+
+        return (int) ($ola->fields['type'] ?? 0) === SLM::TTO;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -114,7 +138,7 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
         if ($config->getFromDB(self::CONFIG_ID)) {
             self::$cache = $config->fields;
         } else {
-            self::$cache = ['id' => self::CONFIG_ID, 'enabled' => 0, 'groups_id' => 0];
+            self::$cache = ['id' => self::CONFIG_ID, 'enabled' => 0, 'groups_id' => 0, 'olas_id_tto' => 0];
         }
 
         return self::$cache;
@@ -139,9 +163,15 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
             $creation_status = Ticket::INCOMING;
         }
 
+        $olas_id_tto = (int) ($input['olas_id_tto'] ?? $this->fields['olas_id_tto'] ?? 0);
+        if (!self::isOlaValid($olas_id_tto)) {
+            $olas_id_tto = 0;
+        }
+
         $input['enabled'] = $enabled ? 1 : 0;
         $input['groups_id'] = $groups_id;
         $input['creation_status'] = $creation_status;
+        $input['olas_id_tto'] = $olas_id_tto;
 
         return $input;
     }
@@ -163,6 +193,7 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
                 `enabled`          tinyint NOT NULL DEFAULT 0,
                 `groups_id`        int {$default_key_sign} NOT NULL DEFAULT 0,
                 `creation_status`  int NOT NULL DEFAULT " . Ticket::INCOMING . ",
+                `olas_id_tto`      int {$default_key_sign} NOT NULL DEFAULT 0,
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=" . DBConnection::getDefaultCharset() . "
                 COLLATE=" . DBConnection::getDefaultCollation() . " ROW_FORMAT=DYNAMIC;";
@@ -173,12 +204,23 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
                 'enabled'         => 0,
                 'groups_id'       => 0,
                 'creation_status' => Ticket::INCOMING,
+                'olas_id_tto'     => 0,
             ]);
-        } elseif (!$DB->fieldExists(self::TABLE, 'creation_status')) {
-            $DB->doQueryOrDie(
-                "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `creation_status` int NOT NULL DEFAULT " . Ticket::INCOMING,
-                'Add creation_status to ' . self::TABLE
-            );
+        } else {
+            if (!$DB->fieldExists(self::TABLE, 'creation_status')) {
+                $DB->doQueryOrDie(
+                    "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `creation_status` int NOT NULL DEFAULT " . Ticket::INCOMING,
+                    'Add creation_status to ' . self::TABLE
+                );
+            }
+
+            if (!$DB->fieldExists(self::TABLE, 'olas_id_tto')) {
+                $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
+                $DB->doQueryOrDie(
+                    "ALTER TABLE `" . self::TABLE . "` ADD COLUMN `olas_id_tto` int {$default_key_sign} NOT NULL DEFAULT 0",
+                    'Add olas_id_tto to ' . self::TABLE
+                );
+            }
         }
 
         return true;
@@ -246,6 +288,22 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
             ]);
         } else {
             echo "<div>" . Dropdown::getDropdownName(Group::getTable(), $config['groups_id']) . "</div>";
+        }
+        echo "</div>";
+
+        echo "<div class='mb-3'>";
+        echo "<label class='form-label d-flex align-items-center' for='dropdown_olas_id_tto'>"
+            . PluginTregopluginsIcon::html('clock', 16, 'me-1')
+            . __('OLA TTO da unidade padrão dos chamados criados', 'tregoplugins') . "</label>";
+        if ($canedit) {
+            OLA::dropdown([
+                'name'      => 'olas_id_tto',
+                'value'     => $config['olas_id_tto'] ?? 0,
+                'condition' => ['type' => SLM::TTO],
+                'entity'    => null,
+            ]);
+        } else {
+            echo "<div>" . Dropdown::getDropdownName(OLA::getTable(), $config['olas_id_tto'] ?? 0) . "</div>";
         }
         echo "</div>";
 
