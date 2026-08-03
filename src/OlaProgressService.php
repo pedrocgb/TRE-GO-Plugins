@@ -169,6 +169,10 @@ HTML;
             return $percentage >= 100 ? 'Atrasado' : 'Atribuído';
         }
 
+        if ($percentage >= 100) {
+            return 'Tempo Excedido';
+        }
+
         if (self::isOutsideWorkingHours($ticket)) {
             return 'Em Pausa: fora do horário de serviço';
         }
