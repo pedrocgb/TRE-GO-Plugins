@@ -138,9 +138,14 @@ class PluginTregopluginsOlaBusinessTimeService
             return $group_calendar_id;
         }
 
-        $ticket_calendar_id = (int) ($ticket->getCalendar(SLM::TTO) ?? 0);
-        if ($ticket_calendar_id > 0) {
-            return $ticket_calendar_id;
+        // Ticket::getCalendar() only ever resolves the ticket's SLA
+        // calendar, regardless of the $slm_type argument passed to it -- it
+        // has no OLA-aware branch at all. Read the OLA's own calendar
+        // configuration directly instead, or this would silently follow
+        // whichever group the SLA (not the OLA) was computed for.
+        $ola = self::getTicketOla($ticket);
+        if ($ola !== null && !$ola->fields['use_ticket_calendar'] && (int) $ola->fields['calendars_id'] > 0) {
+            return (int) $ola->fields['calendars_id'];
         }
 
         return (int) Entity::getUsedConfig(
