@@ -242,8 +242,7 @@ class PluginTregopluginsTicketDispatchConfig extends CommonDBTM
                 'name'      => 'groups_id',
                 'value'     => $config['groups_id'],
                 'condition' => ['is_assign' => 1],
-                'entity'    => 0,
-                'entity_sons' => true,
+                'entity'    => null,
             ]);
         } else {
             echo "<div>" . Dropdown::getDropdownName(Group::getTable(), $config['groups_id']) . "</div>";
