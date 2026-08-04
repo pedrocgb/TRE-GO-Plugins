@@ -32,6 +32,42 @@ class PluginTregopluginsTicketAutomation
         ]);
     }
 
+    /**
+     * A new ticket with only a technician GROUP assigned (no individual
+     * user/supplier) must stay "New". GLPI's own updateActors() would
+     * otherwise auto-bump status to "Assigned" as soon as any ASSIGN-type
+     * actor, group included, is attached during creation.
+     */
+    public static function preventGroupOnlyAutoAssign(CommonDBTM $item): void
+    {
+        if (!$item instanceof Ticket || !is_array($item->input)) {
+            return;
+        }
+
+        if (!empty($item->input['_do_not_compute_status'])) {
+            return;
+        }
+
+        $has_group_assign = !empty($item->input['_groups_id_assign'])
+            || !empty($item->input['_additional_groups_assigns'])
+            || (($item->input['_itil_assign']['_type'] ?? null) === 'group');
+
+        if (!$has_group_assign) {
+            return;
+        }
+
+        $has_user_or_supplier_assign = !empty($item->input['_users_id_assign'])
+            || !empty($item->input['_additional_assigns'])
+            || !empty($item->input['_suppliers_id_assign'])
+            || in_array($item->input['_itil_assign']['_type'] ?? null, ['user', 'supplier'], true);
+
+        if ($has_user_or_supplier_assign) {
+            return;
+        }
+
+        $item->input['_do_not_compute_status'] = true;
+    }
+
     public static function prepareTicketClosure(CommonDBTM $item): void
     {
         if (!$item instanceof Ticket) {

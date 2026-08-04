@@ -99,9 +99,10 @@ function plugin_init_tregoplugins(): void
         ['addtabon' => Profile::class]
     );
 
+    $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_PREPAREADD]['tregoplugins']['Ticket']
+        = 'plugin_tregoplugins_on_ticket_post_prepareadd';
+
     if ($ticket_dispatch_enabled) {
-        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_PREPAREADD]['tregoplugins']['Ticket']
-            = 'plugin_tregoplugins_on_ticket_dispatch_post_prepareadd';
         $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::TIMELINE_ACTIONS]['tregoplugins']
             = [PluginTregopluginsTicketDispatchTimelineAction::class, 'render'];
     }
@@ -145,8 +146,9 @@ function plugin_init_tregoplugins(): void
         = [PluginTregopluginsCategoryForm::class, 'postItemForm'];
 }
 
-function plugin_tregoplugins_on_ticket_dispatch_post_prepareadd(CommonDBTM $item): void
+function plugin_tregoplugins_on_ticket_post_prepareadd(CommonDBTM $item): void
 {
+    PluginTregopluginsTicketAutomation::preventGroupOnlyAutoAssign($item);
     PluginTregopluginsTicketDispatchService::normalizeGroupOnCreation($item);
 }
 
