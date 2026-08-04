@@ -67,6 +67,18 @@ class PluginTregopluginsMainProfile extends CommonDBTM
                 'field'    => PluginTregopluginsTicketDispatchProfile::ACTION_RIGHTNAME,
                 'rights'   => [READ => __('Read')],
             ],
+            [
+                'itemtype' => PluginTregopluginsChecklistProfile::class,
+                'label'    => __('Gerenciar modelos de checklist e vínculos com modelos de tarefa', 'tregoplugins'),
+                'field'    => PluginTregopluginsChecklistProfile::TEMPLATE_RIGHTNAME,
+                'rights'   => [READ => __('Read'), UPDATE => __('Update')],
+            ],
+            [
+                'itemtype' => PluginTregopluginsChecklistProfile::class,
+                'label'    => __('Marcar itens de checklist nas tarefas dos chamados', 'tregoplugins'),
+                'field'    => PluginTregopluginsChecklistProfile::TASKCHECKLIST_RIGHTNAME,
+                'rights'   => [READ => __('Read'), UPDATE => __('Update')],
+            ],
         ];
 
         $profile->displayRightsChoiceMatrix(

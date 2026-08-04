@@ -30,6 +30,12 @@ if (PluginTregopluginsTicketDispatchConfig::canView()) {
     echo "</div>";
 }
 
+if (PluginTregopluginsChecklistConfig::canView()) {
+    echo "<div class='col-12 col-xl-6'>";
+    PluginTregopluginsChecklistConfig::displayTabContentForItem($config);
+    echo "</div>";
+}
+
 echo "</div>";
 echo "</div>";
 

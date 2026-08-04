@@ -22,7 +22,8 @@ class PluginTregopluginsSetupMenu extends CommonGLPI
     public static function canView(): bool
     {
         return PluginTregopluginsKbVisibilityConfig::canView()
-            || PluginTregopluginsTicketDispatchConfig::canView();
+            || PluginTregopluginsTicketDispatchConfig::canView()
+            || PluginTregopluginsChecklistConfig::canView();
     }
 
     public static function getSearchURL($full = true): string

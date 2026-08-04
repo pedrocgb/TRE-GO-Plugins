@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '2.3.1');
+define('PLUGIN_TREGOPLUGINS_VERSION', '2.4.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -43,6 +43,20 @@ require_once __DIR__ . '/src/CategoryForm.php';
 require_once __DIR__ . '/src/KbVisibilityConfig.php';
 require_once __DIR__ . '/src/KbVisibilityGuard.php';
 require_once __DIR__ . '/src/Icon.php';
+require_once __DIR__ . '/src/ChecklistProfile.php';
+require_once __DIR__ . '/src/ChecklistConfig.php';
+require_once __DIR__ . '/src/ChecklistTemplate.php';
+require_once __DIR__ . '/src/ChecklistTemplateItem.php';
+require_once __DIR__ . '/src/ChecklistBinding.php';
+require_once __DIR__ . '/src/ChecklistBindingResolver.php';
+require_once __DIR__ . '/src/TaskChecklist.php';
+require_once __DIR__ . '/src/TaskChecklistItem.php';
+require_once __DIR__ . '/src/ChecklistEvent.php';
+require_once __DIR__ . '/src/ChecklistInstantiator.php';
+require_once __DIR__ . '/src/ChecklistProgress.php';
+require_once __DIR__ . '/src/ChecklistItemService.php';
+require_once __DIR__ . '/src/ChecklistCompletionPolicy.php';
+require_once __DIR__ . '/src/ChecklistTimelinePresenter.php';
 require_once __DIR__ . '/src/MainProfile.php';
 require_once __DIR__ . '/src/OlaBusinessTimeService.php';
 require_once __DIR__ . '/src/OlaProgressService.php';
@@ -76,17 +90,33 @@ function plugin_init_tregoplugins(): void
         && $DB->tableExists(PluginTregopluginsTicketDispatchConfig::TABLE)
         && PluginTregopluginsTicketDispatchConfig::isEnabled();
 
+    // Same "disabled means not called" guard as ticket-dispatch above:
+    // checklist tabs/hooks/assets only register once the module is turned
+    // on in Setup, so a disabled module has zero footprint on
+    // TicketTask/TaskTemplate/Ticket.
+    $checklist_enabled = $DB instanceof DBmysql
+        && $DB->tableExists(PluginTregopluginsChecklistConfig::TABLE)
+        && PluginTregopluginsChecklistConfig::isEnabled();
+
     $css_files = ['public/tregoplugins.css', 'public/ola-report.css'];
     $js_files  = ['public/tregoplugins-ticket-list.js'];
     if ($ticket_dispatch_enabled) {
         $css_files[] = 'public/css/ticket-dispatch.css';
         $js_files[]  = 'public/js/ticket-dispatch.js';
     }
+    if ($checklist_enabled) {
+        $css_files[] = 'public/css/task-checklist.css';
+        $js_files[]  = 'public/js/task-checklist.js';
+    }
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['tregoplugins'] = $css_files;
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['tregoplugins'] = $js_files;
 
+    $management_menu = [PluginTregopluginsOlaReport::class];
+    if ($checklist_enabled) {
+        $management_menu[] = PluginTregopluginsChecklistTemplate::class;
+    }
     $PLUGIN_HOOKS['menu_toadd']['tregoplugins'] = [
-        'management' => [PluginTregopluginsOlaReport::class],
+        'management' => $management_menu,
         'config'      => [PluginTregopluginsSetupMenu::class],
     ];
 
@@ -144,6 +174,43 @@ function plugin_init_tregoplugins(): void
 
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_ITEM_FORM]['tregoplugins']
         = [PluginTregopluginsCategoryForm::class, 'postItemForm'];
+
+    if ($checklist_enabled) {
+        Plugin::registerClass(
+            PluginTregopluginsChecklistBinding::class,
+            ['addtabon' => TaskTemplate::class]
+        );
+
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_ADD]['tregoplugins']['TicketTask']
+            = 'plugin_tregoplugins_on_tickettask_add';
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::PRE_ITEM_UPDATE]['tregoplugins']['TicketTask']
+            = 'plugin_tregoplugins_on_tickettask_pre_update';
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_PURGE]['tregoplugins']['TicketTask']
+            = 'plugin_tregoplugins_on_tickettask_purge';
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::SHOW_IN_TIMELINE]['tregoplugins']
+            = [PluginTregopluginsChecklistTimelinePresenter::class, 'render'];
+    }
+}
+
+function plugin_tregoplugins_on_tickettask_add(CommonDBTM $item): void
+{
+    if ($item instanceof TicketTask) {
+        PluginTregopluginsChecklistInstantiator::materialize($item);
+    }
+}
+
+function plugin_tregoplugins_on_tickettask_pre_update(CommonDBTM $item): void
+{
+    if ($item instanceof TicketTask) {
+        PluginTregopluginsChecklistCompletionPolicy::guardPreUpdate($item);
+    }
+}
+
+function plugin_tregoplugins_on_tickettask_purge(CommonDBTM $item): void
+{
+    if ($item instanceof TicketTask) {
+        PluginTregopluginsChecklistInstantiator::cleanupForPurgedTask((int) $item->getID());
+    }
 }
 
 function plugin_tregoplugins_on_ticket_post_prepareadd(CommonDBTM $item): void
@@ -233,6 +300,15 @@ function plugin_tregoplugins_do_install(): bool
     PluginTregopluginsTicketDispatchConfig::installRights();
     PluginTregopluginsTicketDispatchProfile::installRights();
 
+    PluginTregopluginsChecklistConfig::install();
+    PluginTregopluginsChecklistTemplate::install();
+    PluginTregopluginsChecklistTemplateItem::install();
+    PluginTregopluginsChecklistBinding::install();
+    PluginTregopluginsTaskChecklist::install();
+    PluginTregopluginsTaskChecklistItem::install();
+    PluginTregopluginsChecklistEvent::install();
+    PluginTregopluginsChecklistConfig::installRights();
+
     return true;
 }
 
@@ -248,6 +324,18 @@ function plugin_tregoplugins_do_uninstall(): bool
     PluginTregopluginsOlaBusinessTimeService::uninstall();
     PluginTregopluginsKbVisibilityConfig::uninstall();
     PluginTregopluginsCategoryConfig::uninstall();
+
+    // Data-retention policy matches the rest of this plugin's modules:
+    // uninstall drops the module's own tables outright (no separate
+    // "keep data" toggle exists anywhere else in tregoplugins either).
+    PluginTregopluginsChecklistConfig::uninstallRights();
+    PluginTregopluginsChecklistEvent::uninstall();
+    PluginTregopluginsTaskChecklistItem::uninstall();
+    PluginTregopluginsTaskChecklist::uninstall();
+    PluginTregopluginsChecklistBinding::uninstall();
+    PluginTregopluginsChecklistTemplateItem::uninstall();
+    PluginTregopluginsChecklistTemplate::uninstall();
+    PluginTregopluginsChecklistConfig::uninstall();
 
     return true;
 }

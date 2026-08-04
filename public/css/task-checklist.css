@@ -1,0 +1,45 @@
+.plugin-tregoplugins-checklist {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--tblr-border-color, #dee2e6);
+}
+
+.plugin-tregoplugins-checklist-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.plugin-tregoplugins-checklist-count {
+    margin-left: auto;
+    font-weight: 400;
+    color: var(--tblr-secondary, #6c757d);
+}
+
+.plugin-tregoplugins-checklist-progress {
+    height: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.plugin-tregoplugins-checklist-items {
+    margin: 0;
+}
+
+.plugin-tregoplugins-checklist-item {
+    margin-bottom: 0.35rem;
+}
+
+.plugin-tregoplugins-required-badge {
+    color: var(--tblr-danger, #d63939);
+}
+
+.plugin-tregoplugins-checklist-instructions,
+.plugin-tregoplugins-checklist-meta {
+    margin-left: 1.5rem;
+}
+
+.plugin-tregoplugins-checklist-item-error {
+    margin-left: 1.5rem;
+}
