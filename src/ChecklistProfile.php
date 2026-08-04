@@ -42,8 +42,8 @@ class PluginTregopluginsChecklistProfile extends CommonDBTM
 
     public static function installRights(): void
     {
-        self::seedRight(self::TEMPLATE_RIGHTNAME);
-        self::seedRight(self::TASKCHECKLIST_RIGHTNAME);
+        self::seedRight(self::TEMPLATE_RIGHTNAME, true);
+        self::seedRight(self::TASKCHECKLIST_RIGHTNAME, true);
     }
 
     public static function uninstallRights(): void
@@ -52,12 +52,14 @@ class PluginTregopluginsChecklistProfile extends CommonDBTM
     }
 
     /**
-     * Seed a plugin right at 0 (no access) for every existing profile, so
-     * new profiles created after install still get an explicit row. Mirrors
-     * PluginTregopluginsTicketDispatchProfile::seedRight() (never granted to
-     * managers automatically: admins must opt in explicitly per profile).
+     * Seed a plugin right for every existing profile, so new profiles
+     * created after install still get an explicit row. Profile-manager
+     * profiles (those with UPDATE on Profile::$rightname, e.g. Super-Admin)
+     * get READ|UPDATE by default so the module is actually reachable right
+     * after activation; every other profile starts at 0, same as
+     * PluginTregopluginsTicketDispatchProfile::seedRight().
      */
-    private static function seedRight(string $rightname): void
+    private static function seedRight(string $rightname, bool $grant_to_managers): void
     {
         global $DB, $GLPI_CACHE;
 
@@ -85,12 +87,16 @@ class PluginTregopluginsChecklistProfile extends CommonDBTM
                 continue;
             }
 
+            $rights = ($grant_to_managers && self::isProfileManager($profiles_id))
+                ? (READ | UPDATE)
+                : 0;
+
             $DB->insert(
                 ProfileRight::getTable(),
                 [
                     'profiles_id' => $profiles_id,
                     'name'        => $rightname,
-                    'rights'      => 0,
+                    'rights'      => $rights,
                 ]
             );
         }
@@ -98,5 +104,27 @@ class PluginTregopluginsChecklistProfile extends CommonDBTM
         if (isset($GLPI_CACHE)) {
             $GLPI_CACHE->set('all_possible_rights', []);
         }
+    }
+
+    private static function isProfileManager(int $profiles_id): bool
+    {
+        global $DB;
+
+        $iterator = $DB->request([
+            'SELECT' => ['rights'],
+            'FROM'   => ProfileRight::getTable(),
+            'WHERE'  => [
+                'profiles_id' => $profiles_id,
+                'name'        => Profile::$rightname,
+            ],
+            'LIMIT'  => 1,
+        ]);
+
+        if (count($iterator) === 0) {
+            return false;
+        }
+
+        $row = $iterator->current();
+        return (((int) ($row['rights'] ?? 0)) & UPDATE) === UPDATE;
     }
 }
