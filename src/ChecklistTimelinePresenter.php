@@ -2,70 +2,51 @@
 
 /**
  * Enriches TicketTask cards in the ticket timeline with their materialized
- * checklist, via the version-agnostic Hooks::SHOW_IN_TIMELINE hook (present
- * unchanged since early GLPI 10 and not deprecated; GLPI 11's install was
- * not available to verify a TIMELINE_ITEMS-specific shape against, so this
- * hook was kept as the single, tested implementation for both branches —
- * see docs handed to the next reviewer for the compatibility caveat).
+ * checklist.
  *
- * SHOW_IN_TIMELINE fires after CommonITILObject::getTimelineItems() has
- * already filtered tasks by canViewItem(), so no extra privacy check is
- * needed here beyond the module's own read right. Loads every checklist for
- * the whole timeline in one batch query (no N+1 per task card).
+ * Not implemented via Hooks::SHOW_IN_TIMELINE: that hook only lets a plugin
+ * mutate the entry's `content` field, which the timeline template renders
+ * through a `safe_html`/purifier filter — it strips <input>/<form>, so any
+ * checkbox injected that way silently disappears (confirmed against
+ * templates/components/itilobject/timeline/timeline.html.twig: the read-only
+ * branch does `{{ entry_i['content']|safe_html }}`).
+ *
+ * Hooks::PRE_SHOW_ITEM/POST_SHOW_ITEM (both `since 10.0.0`, confirmed present
+ * unchanged in the GLPI 10 source used to build this plugin) are called via
+ * Twig's `call_plugin_hook()` without `return_result`, so the callback's
+ * `echo` output goes straight to the response — never sanitized. POST_SHOW_ITEM
+ * fires just before the `.timeline-item` wrapper closes (after the card's own
+ * content), so the checklist reads as "attached to" the task card without
+ * fighting the purifier.
  */
 class PluginTregopluginsChecklistTimelinePresenter
 {
     /**
-     * @param array{item?: CommonITILObject, timeline?: array<string, mixed>} $params
+     * @param array{item?: CommonDBTM, options?: array<string, mixed>} $params
      */
     public static function render(array $params): void
     {
-        if (!($params['item'] ?? null) instanceof Ticket) {
-            return;
-        }
-        if (!isset($params['timeline']) || !is_array($params['timeline'])) {
+        $task = $params['item'] ?? null;
+        if (!$task instanceof TicketTask || (int) $task->getID() <= 0) {
             return;
         }
         if (!PluginTregopluginsChecklistProfile::canViewTaskChecklist()) {
             return;
         }
 
-        $tickettasks_ids = [];
-        foreach ($params['timeline'] as $entry) {
-            if (($entry['type'] ?? null) === TicketTask::class) {
-                $tickettasks_ids[] = (int) ($entry['item']['id'] ?? 0);
-            }
-        }
-        if (empty($tickettasks_ids)) {
+        $checklist = PluginTregopluginsTaskChecklist::getForTask((int) $task->getID());
+        if ($checklist === null) {
             return;
         }
 
-        $checklists = PluginTregopluginsTaskChecklist::getForTasks($tickettasks_ids);
-        if (empty($checklists)) {
+        $items = PluginTregopluginsTaskChecklistItem::getForChecklist((int) $checklist->getID());
+        if (empty($items)) {
             return;
         }
 
-        $checklists_ids = array_map(static fn (array $c): int => (int) $c['id'], $checklists);
-        $items_by_checklist = PluginTregopluginsTaskChecklistItem::getForChecklists($checklists_ids);
-        $can_edit = PluginTregopluginsChecklistProfile::canUpdateTaskChecklist();
+        $can_edit = PluginTregopluginsChecklistProfile::canUpdateTaskChecklist() && $task->canUpdateItem();
 
-        foreach ($params['timeline'] as $key => &$entry) {
-            if (($entry['type'] ?? null) !== TicketTask::class) {
-                continue;
-            }
-
-            $tickettasks_id = (int) ($entry['item']['id'] ?? 0);
-            if (!isset($checklists[$tickettasks_id])) {
-                continue;
-            }
-
-            $checklist = $checklists[$tickettasks_id];
-            $items = $items_by_checklist[(int) $checklist['id']] ?? [];
-
-            $entry['item']['content'] = ($entry['item']['content'] ?? '')
-                . self::buildFragment($checklist, $items, $can_edit);
-        }
-        unset($entry);
+        echo self::buildFragment($checklist->fields, $items, $can_edit);
     }
 
     /**

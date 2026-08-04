@@ -187,7 +187,7 @@ function plugin_init_tregoplugins(): void
             = 'plugin_tregoplugins_on_tickettask_pre_update';
         $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_PURGE]['tregoplugins']['TicketTask']
             = 'plugin_tregoplugins_on_tickettask_purge';
-        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::SHOW_IN_TIMELINE]['tregoplugins']
+        $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::POST_SHOW_ITEM]['tregoplugins']
             = [PluginTregopluginsChecklistTimelinePresenter::class, 'render'];
     }
 }

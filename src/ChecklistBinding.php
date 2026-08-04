@@ -78,14 +78,26 @@ class PluginTregopluginsChecklistBinding extends CommonDBTM
      */
     private function normalizeAndValidate(array $input)
     {
-        $input['is_recursive'] = isset($input['is_recursive']) && (int) $input['is_recursive'] === 1 ? 1 : 0;
-        $input['is_active']    = isset($input['is_active']) && (int) $input['is_active'] === 1 ? 1 : 0;
-        $input['ticket_type']       = (int) ($input['ticket_type'] ?? self::ANY_TICKET_TYPE);
-        $input['itilcategories_id'] = (int) ($input['itilcategories_id'] ?? self::ANY_ITILCATEGORY);
-        $input['priority']          = (int) ($input['priority'] ?? 0);
-        $input['entities_id']       = (int) ($input['entities_id'] ?? Session::getActiveEntity());
+        // On a partial update (not every field resubmitted), fall back to
+        // the row's current value instead of the "new record" default, so
+        // an edit that only touches e.g. `priority` doesn't silently reset
+        // is_active/ticket_type/etc. to 0/"any".
+        $existing = $this->isNewItem() ? [] : $this->fields;
 
-        if (($input['tasktemplates_id'] ?? 0) <= 0 || ($input['checklisttemplates_id'] ?? 0) <= 0) {
+        $input['is_recursive'] = isset($input['is_recursive'])
+            ? ((int) $input['is_recursive'] === 1 ? 1 : 0)
+            : (int) ($existing['is_recursive'] ?? 0);
+        $input['is_active'] = isset($input['is_active'])
+            ? ((int) $input['is_active'] === 1 ? 1 : 0)
+            : (int) ($existing['is_active'] ?? 0);
+        $input['ticket_type'] = (int) ($input['ticket_type'] ?? $existing['ticket_type'] ?? self::ANY_TICKET_TYPE);
+        $input['itilcategories_id'] = (int) ($input['itilcategories_id'] ?? $existing['itilcategories_id'] ?? self::ANY_ITILCATEGORY);
+        $input['priority'] = (int) ($input['priority'] ?? $existing['priority'] ?? 0);
+        $input['entities_id'] = (int) ($input['entities_id'] ?? $existing['entities_id'] ?? Session::getActiveEntity());
+        $input['tasktemplates_id'] = (int) ($input['tasktemplates_id'] ?? $existing['tasktemplates_id'] ?? 0);
+        $input['checklisttemplates_id'] = (int) ($input['checklisttemplates_id'] ?? $existing['checklisttemplates_id'] ?? 0);
+
+        if ($input['tasktemplates_id'] <= 0 || $input['checklisttemplates_id'] <= 0) {
             return false;
         }
 

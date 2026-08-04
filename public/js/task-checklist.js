@@ -28,17 +28,15 @@
         $item.find('.plugin-tregoplugins-checklist-item-error').remove();
     }
 
-    $(document).on('change', '.plugin-tregoplugins-checklist-toggle', function () {
-        var $checkbox = $(this);
+    function toggleItem($checkbox, checked) {
         var $item = $checkbox.closest('.plugin-tregoplugins-checklist-item');
         var $checklist = $checkbox.closest('.plugin-tregoplugins-checklist');
-        var previousChecked = !$checkbox.is(':checked');
-        var checked = $checkbox.is(':checked');
+        var previousChecked = !checked;
 
         clearItemError($item);
         setBusy($checkbox, true);
 
-        $.post(endpoint(), {
+        return $.post(endpoint(), {
             items_id: $checkbox.data('item-id'),
             lock_version: $checkbox.data('lock-version'),
             checked: checked ? '1' : '0'
@@ -62,5 +60,33 @@
             .always(function () {
                 setBusy($checkbox, false);
             });
+    }
+
+    $(document).on('change', '.plugin-tregoplugins-checklist-toggle', function () {
+        var $checkbox = $(this);
+        toggleItem($checkbox, $checkbox.is(':checked'));
+    });
+
+    // Marking the task itself done/todo (native GLPI toggle, top-left of the
+    // task card) checks/unchecks every checklist item along with it. Reads
+    // the pre-click class since change_task_state()'s own class flip happens
+    // asynchronously in its ajax .done(), always after this synchronous
+    // click handler runs.
+    $(document).on('click', '.timeline-item[data-itemtype="TicketTask"] .todo-list-state .state', function () {
+        var $item = $(this).closest('.timeline-item');
+        var $checklist = $item.find('.plugin-tregoplugins-checklist');
+        if (!$checklist.length) {
+            return;
+        }
+
+        var taskWillBeDone = !$(this).hasClass('state_2');
+
+        $checklist.find('.plugin-tregoplugins-checklist-toggle:not(:disabled)').each(function () {
+            var $checkbox = $(this);
+            if ($checkbox.is(':checked') !== taskWillBeDone) {
+                $checkbox.prop('checked', taskWillBeDone);
+                toggleItem($checkbox, taskWillBeDone);
+            }
+        });
     });
 })(jQuery);
