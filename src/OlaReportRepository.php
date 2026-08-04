@@ -558,6 +558,14 @@ class PluginTregopluginsOlaReportRepository
             return;
         }
 
+        $user_id = self::getCurrentAssignedUserId($ticket_id);
+        $supplier_id = self::getCurrentAssignedSupplierId($ticket_id);
+        if ($user_id <= 0 && $supplier_id <= 0) {
+            // No real technician/supplier actor: a group-only assignment stamps
+            // takeintoaccountdate too, so that field alone can't prove assignment.
+            return;
+        }
+
         $assigned_at = trim((string) ($ticket->fields['takeintoaccountdate'] ?? ''));
         if ($assigned_at === '') {
             $delay = (int) ($ticket->fields['takeintoaccount_delay_stat'] ?? 0);
@@ -565,12 +573,6 @@ class PluginTregopluginsOlaReportRepository
             if ($delay > 0 && $start !== '') {
                 $assigned_at = date('Y-m-d H:i:s', strtotime($start) + $delay);
             }
-        }
-
-        $user_id = self::getCurrentAssignedUserId($ticket_id);
-        $supplier_id = self::getCurrentAssignedSupplierId($ticket_id);
-        if ($user_id <= 0 && $supplier_id <= 0 && $assigned_at === '') {
-            return;
         }
 
         if ($assigned_at === '') {
