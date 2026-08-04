@@ -62,31 +62,73 @@
             });
     }
 
+    function bulkToggle($checklist, checked) {
+        $checklist.find('.plugin-tregoplugins-checklist-toggle:not(:disabled)').each(function () {
+            var $checkbox = $(this);
+            if ($checkbox.is(':checked') !== checked) {
+                $checkbox.prop('checked', checked);
+                toggleItem($checkbox, checked);
+            }
+        });
+    }
+
     $(document).on('change', '.plugin-tregoplugins-checklist-toggle', function () {
         var $checkbox = $(this);
         toggleItem($checkbox, $checkbox.is(':checked'));
     });
 
-    // Marking the task itself done/todo (native GLPI toggle, top-left of the
-    // task card) checks/unchecks every checklist item along with it. Reads
-    // the pre-click class since change_task_state()'s own class flip happens
-    // asynchronously in its ajax .done(), always after this synchronous
-    // click handler runs.
-    $(document).on('click', '.timeline-item[data-itemtype="TicketTask"] .todo-list-state .state', function () {
-        var $item = $(this).closest('.timeline-item');
-        var $checklist = $item.find('.plugin-tregoplugins-checklist');
-        if (!$checklist.length) {
+    // Hooks::POST_SHOW_ITEM (the only version-stable hook that isn't
+    // stripped by the timeline content purifier) fires right before the
+    // .timeline-item wrapper closes, i.e. as a SIBLING of the task's visual
+    // card (.timeline-content), not inside its .card-body. Move it in after
+    // render so it visually sits glued to the task instead of floating
+    // below the whole card.
+    function relocateChecklists() {
+        $('.timeline-item[data-itemtype="TicketTask"] > .plugin-tregoplugins-checklist').each(function () {
+            var $fragment = $(this);
+            var $cardBody = $fragment.closest('.timeline-item').find('.timeline-content .card-body').first();
+            if ($cardBody.length) {
+                $cardBody.append($fragment);
+            }
+        });
+    }
+
+    $(relocateChecklists);
+    // Timeline entries (re)load via GLPI's own ajax calls (tab switch,
+    // "reload timeline" button, adding a task); ajaxComplete catches all of
+    // those without needing to guess which GLPI event/selector fired it.
+    $(document).ajaxComplete(relocateChecklists);
+
+    // Marking the task itself done/todo (native GLPI toggle) checks/unchecks
+    // every checklist item on it. Wrapping the global change_task_state()
+    // function instead of binding to a CSS selector: the function name is
+    // the one stable contract the core template guarantees
+    // (onclick="change_task_state(id, this)"), whereas the exact markup
+    // around it isn't guaranteed to match between GLPI versions.
+    function installChangeTaskStateWrapper() {
+        if (typeof window.change_task_state !== 'function' || window.change_task_state.__tregoplugins) {
             return;
         }
 
-        var taskWillBeDone = !$(this).hasClass('state_2');
+        var original = window.change_task_state;
+        var wrapped = function (tasks_id, target) {
+            var $target = $(target);
+            var $item = $target.closest('.timeline-item');
+            var $checklist = $item.find('.plugin-tregoplugins-checklist');
+            var taskWillBeDone = !$target.hasClass('state_2');
 
-        $checklist.find('.plugin-tregoplugins-checklist-toggle:not(:disabled)').each(function () {
-            var $checkbox = $(this);
-            if ($checkbox.is(':checked') !== taskWillBeDone) {
-                $checkbox.prop('checked', taskWillBeDone);
-                toggleItem($checkbox, taskWillBeDone);
+            var result = original.apply(this, arguments);
+
+            if ($checklist.length) {
+                bulkToggle($checklist, taskWillBeDone);
             }
-        });
-    });
+
+            return result;
+        };
+        wrapped.__tregoplugins = true;
+        window.change_task_state = wrapped;
+    }
+
+    $(installChangeTaskStateWrapper);
+    $(document).ajaxComplete(installChangeTaskStateWrapper);
 })(jQuery);
