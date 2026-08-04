@@ -170,7 +170,7 @@ class PluginTregopluginsChecklistBinding extends CommonDBTM
                 echo "<form method='post' action='" . Html::entities_deep($form_url) . "' class='d-inline'>";
                 echo Html::hidden('id', ['value' => $row['id']]);
                 echo "<button type='submit' name='purge' class='btn btn-sm btn-outline-danger'><i class='ti ti-trash'></i></button>";
-                echo "</form>";
+                Html::closeForm();
                 echo "</td>";
             }
             echo "</tr>";
@@ -214,7 +214,7 @@ class PluginTregopluginsChecklistBinding extends CommonDBTM
             echo "<label class='form-check-label' for='binding_is_recursive'>" . __('Recursivo') . "</label>";
             echo "</div>";
 
-            echo "</form>";
+            Html::closeForm();
         }
 
         echo "</div>";

@@ -18,21 +18,18 @@ $config = new Config();
 echo "<div class='container-fluid'>";
 echo "<div class='row g-3 justify-content-center'>";
 
+echo "<div class='col-12 col-xl-6'>";
 if (PluginTregopluginsKbVisibilityConfig::canView()) {
-    echo "<div class='col-12 col-xl-6'>";
     PluginTregopluginsKbVisibilityConfig::displayTabContentForItem($config);
-    echo "</div>";
 }
+if (PluginTregopluginsChecklistConfig::canView()) {
+    PluginTregopluginsChecklistConfig::displayTabContentForItem($config);
+}
+echo "</div>";
 
 if (PluginTregopluginsTicketDispatchConfig::canView()) {
     echo "<div class='col-12 col-xl-6'>";
     PluginTregopluginsTicketDispatchConfig::displayTabContentForItem($config);
-    echo "</div>";
-}
-
-if (PluginTregopluginsChecklistConfig::canView()) {
-    echo "<div class='col-12 col-xl-6'>";
-    PluginTregopluginsChecklistConfig::displayTabContentForItem($config);
     echo "</div>";
 }
 

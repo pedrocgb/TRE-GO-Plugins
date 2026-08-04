@@ -202,20 +202,20 @@ if (!$is_new) {
                 echo Html::hidden('id', ['value' => $item_row['id']]);
                 echo Html::hidden('direction', ['value' => -1]);
                 echo "<button type='submit' name='moveitem' class='btn btn-sm btn-outline-secondary'><i class='ti ti-arrow-up'></i></button>";
-                echo "</form>";
+                Html::closeForm();
             }
             if ($index < $last_index) {
                 echo "<form method='post' action='" . Html::entities_deep($form_url) . "' class='d-inline'>";
                 echo Html::hidden('id', ['value' => $item_row['id']]);
                 echo Html::hidden('direction', ['value' => 1]);
                 echo "<button type='submit' name='moveitem' class='btn btn-sm btn-outline-secondary'><i class='ti ti-arrow-down'></i></button>";
-                echo "</form>";
+                Html::closeForm();
             }
 
             echo "<form method='post' action='" . Html::entities_deep($form_url) . "' class='d-inline'>";
             echo Html::hidden('id', ['value' => $item_row['id']]);
             echo "<button type='submit' name='deleteitem' class='btn btn-sm btn-outline-danger'><i class='ti ti-trash'></i></button>";
-            echo "</form>";
+            Html::closeForm();
             echo "</td>";
         }
         echo "</tr>";
@@ -235,7 +235,7 @@ if (!$is_new) {
         echo "</div>";
         echo "<div class='col-md-2'><button type='submit' name='additem' class='btn btn-primary w-100'>"
             . "<i class='ti ti-plus'></i></button></div>";
-        echo "</form>";
+        Html::closeForm();
     }
 
     echo "</div>"; // card-body
