@@ -278,6 +278,14 @@ HTML;
 
     private static function resolveAssignmentPauseDate(Ticket $ticket): ?string
     {
+        // takeintoaccountdate/takeintoaccount_delay_stat get stamped by GLPI
+        // core as soon as ANY assign-type actor is attached, group included.
+        // Only a real technician user/supplier means the ticket was actually
+        // taken into account.
+        if (!self::hasRealAssignedActor((int) $ticket->getID())) {
+            return null;
+        }
+
         $takeintoaccount_date = trim((string) ($ticket->fields['takeintoaccountdate'] ?? ''));
         if ($takeintoaccount_date !== '') {
             return $takeintoaccount_date;
@@ -290,5 +298,33 @@ HTML;
         }
 
         return null;
+    }
+
+    private static function hasRealAssignedActor(int $ticket_id): bool
+    {
+        global $DB;
+
+        if ($ticket_id <= 0) {
+            return false;
+        }
+
+        $user_iterator = $DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => 'glpi_tickets_users',
+            'WHERE'  => ['tickets_id' => $ticket_id, 'type' => CommonITILActor::ASSIGN],
+            'LIMIT'  => 1,
+        ]);
+        if (count($user_iterator) > 0) {
+            return true;
+        }
+
+        $supplier_iterator = $DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => 'glpi_suppliers_tickets',
+            'WHERE'  => ['tickets_id' => $ticket_id, 'type' => CommonITILActor::ASSIGN],
+            'LIMIT'  => 1,
+        ]);
+
+        return count($supplier_iterator) > 0;
     }
 }
