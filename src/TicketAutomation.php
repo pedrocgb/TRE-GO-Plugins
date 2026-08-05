@@ -100,6 +100,14 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
+        // Only an actual dispatch/escalation restarts the OLA TTO cycle.
+        // Assigning a technician through the normal ticket actor form can
+        // also add/change the group actor (e.g. the tech's own group), and
+        // that must never reset an already-running clock.
+        if (!PluginTregopluginsTicketDispatchService::isDispatching()) {
+            return;
+        }
+
         if ((int) ($item->fields['type'] ?? $item->input['type'] ?? 0) !== CommonITILActor::ASSIGN) {
             return;
         }

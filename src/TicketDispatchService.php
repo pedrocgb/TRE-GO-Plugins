@@ -13,6 +13,23 @@ class PluginTregopluginsTicketDispatchService
 {
     public const AUDIT_TABLE = 'glpi_plugin_tregoplugins_ticketdispatchlogs';
 
+    /**
+     * Set for the duration of dispatch()'s Ticket::update() call only.
+     * GLPI's updateActors() doesn't propagate arbitrary '_xxx' input keys
+     * down into the Group_Ticket rows it creates, so a plain
+     * '_dispatch_by_tregoplugins' input flag never reaches
+     * PluginTregopluginsTicketAutomation::restartOlaTtoForGroupAssignment().
+     * This same-request static flag is what actually lets that hook tell a
+     * dispatch/escalation group change apart from an ordinary technician
+     * assignment that happens to touch the group actor too.
+     */
+    private static bool $dispatching = false;
+
+    public static function isDispatching(): bool
+    {
+        return self::$dispatching;
+    }
+
     public static function normalizeGroupOnCreation(CommonDBTM $item): void
     {
         if (!$item instanceof Ticket) {
@@ -113,7 +130,12 @@ class PluginTregopluginsTicketDispatchService
                 self::removeStaleAssignGroups($fresh, $recheck['calculated_group_ids']);
             }
 
-            $updated = $fresh->update($mapped);
+            self::$dispatching = true;
+            try {
+                $updated = $fresh->update($mapped);
+            } finally {
+                self::$dispatching = false;
+            }
             if (!$updated) {
                 throw new RuntimeException('Ticket update failed');
             }
