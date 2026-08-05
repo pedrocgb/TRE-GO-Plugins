@@ -260,6 +260,12 @@ function plugin_tregoplugins_on_ticket_assigned_actor_add(CommonDBTM $item): voi
 
 function plugin_tregoplugins_on_itilsolution_pre_add(CommonDBTM $item): void
 {
+    if ($item instanceof ITILSolution) {
+        PluginTregopluginsChecklistCompletionPolicy::guardSolutionPreAdd($item);
+        if ($item->input === false) {
+            return;
+        }
+    }
     PluginTregopluginsTicketAutomation::prepareSolutionCreation($item);
 }
 

@@ -100,35 +100,18 @@
     $(document).ajaxComplete(relocateChecklists);
 
     // Marking the task itself done/todo (native GLPI toggle) checks/unchecks
-    // every checklist item on it. Wrapping the global change_task_state()
-    // function instead of binding to a CSS selector: the function name is
-    // the one stable contract the core template guarantees
-    // (onclick="change_task_state(id, this)"), whereas the exact markup
-    // around it isn't guaranteed to match between GLPI versions.
-    function installChangeTaskStateWrapper() {
-        if (typeof window.change_task_state !== 'function' || window.change_task_state.__tregoplugins) {
+    // every checklist item on it. The core template re-declares a fresh
+    // window.change_task_state on every timeline render (it's a plain
+    // <script> tag embedded per task card), so monkey-patching that global
+    // gets silently undone on the next reload. Delegated click on the
+    // native ".state" icon survives any number of re-renders instead.
+    $(document).on('click', '.timeline-item[data-itemtype="TicketTask"] .state', function () {
+        var $target = $(this);
+        var $item = $target.closest('.timeline-item');
+        var $checklist = $item.find('.plugin-tregoplugins-checklist');
+        if (!$checklist.length) {
             return;
         }
-
-        var original = window.change_task_state;
-        var wrapped = function (tasks_id, target) {
-            var $target = $(target);
-            var $item = $target.closest('.timeline-item');
-            var $checklist = $item.find('.plugin-tregoplugins-checklist');
-            var taskWillBeDone = !$target.hasClass('state_2');
-
-            var result = original.apply(this, arguments);
-
-            if ($checklist.length) {
-                bulkToggle($checklist, taskWillBeDone);
-            }
-
-            return result;
-        };
-        wrapped.__tregoplugins = true;
-        window.change_task_state = wrapped;
-    }
-
-    $(installChangeTaskStateWrapper);
-    $(document).ajaxComplete(installChangeTaskStateWrapper);
+        bulkToggle($checklist, !$target.hasClass('state_2'));
+    });
 })(jQuery);

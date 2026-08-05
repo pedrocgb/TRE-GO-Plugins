@@ -59,6 +59,70 @@ class PluginTregopluginsChecklistCompletionPolicy
     }
 
     /**
+     * Hooks::PRE_ITEM_ADD guard for ITILSolution: a BLOCK_DONE checklist is
+     * meant to stop the ticket from being solved while it has a task with a
+     * pending required item, not just stop that one task's own state field.
+     */
+    public static function guardSolutionPreAdd(ITILSolution $solution): void
+    {
+        if (!is_array($solution->input)) {
+            return;
+        }
+
+        $itemtype = $solution->input['itemtype'] ?? '';
+        if ($itemtype !== Ticket::class && $itemtype !== 'Ticket') {
+            return;
+        }
+
+        if (!PluginTregopluginsChecklistConfig::isEnabled()) {
+            return;
+        }
+
+        $tickets_id = (int) ($solution->input['items_id'] ?? 0);
+        if ($tickets_id <= 0) {
+            return;
+        }
+
+        global $DB;
+        $iterator = $DB->request([
+            'FROM'  => PluginTregopluginsTaskChecklist::getTable(),
+            'WHERE' => [
+                'tickets_id'                  => $tickets_id,
+                'completion_policy_snapshot'  => PluginTregopluginsChecklistTemplate::POLICY_BLOCK_DONE,
+            ],
+        ]);
+
+        $pending = [];
+        foreach ($iterator as $row) {
+            $pending = array_merge(
+                $pending,
+                PluginTregopluginsChecklistProgress::getPendingRequiredNames((int) $row['id'])
+            );
+        }
+        $pending = array_unique($pending);
+
+        if (empty($pending)) {
+            return;
+        }
+
+        $solution->input = false;
+        Session::addMessageAfterRedirect(
+            sprintf(
+                _n(
+                    'O chamado não pode ser resolvido: %d item obrigatório de checklist pendente em uma tarefa (%s).',
+                    'O chamado não pode ser resolvido: %d itens obrigatórios de checklist pendentes em tarefas (%s).',
+                    count($pending),
+                    'tregoplugins'
+                ),
+                count($pending),
+                implode(', ', array_slice($pending, 0, 3))
+            ),
+            false,
+            ERROR
+        );
+    }
+
+    /**
      * Called after a successful item toggle. Completes the task once, with
      * a same-process guard against the recursive PRE_ITEM_UPDATE our own
      * update() call triggers.
