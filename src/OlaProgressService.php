@@ -162,6 +162,14 @@ HTML;
 
     private static function resolveStatusLabel(Ticket $ticket, int $percentage): ?string
     {
+        // Solved/closed always wins: the OLA TTO clock is frozen (see
+        // resolveProgressEndDate) and nothing else about "Atribuído"/"Em
+        // Pausa" is relevant once the ticket is done. A reopen flips status
+        // back below CLOSED and this override stops applying on its own.
+        if (self::isClosedStatus((int) ($ticket->fields['status'] ?? 0))) {
+            return 'Chamado finalizado';
+        }
+
         // Already taken into account: that state always wins over the
         // calendar-pause label below, whether the clock is currently inside
         // or outside working hours.
@@ -264,13 +272,25 @@ HTML;
 
     private static function resolveProgressEndDate(Ticket $ticket): string
     {
+        // Solved/closed freezes the clock at the solve/close date instead of
+        // "now", so the bar/percentage stop moving once the ticket is done.
+        // A reopen (native GLPI rule) clears solvedate/closedate and flips
+        // status back below CLOSED, so this branch stops applying on its own.
+        if (self::isClosedStatus((int) ($ticket->fields['status'] ?? 0))) {
+            $solve_date = trim((string) ($ticket->fields['solvedate'] ?? ''));
+            if ($solve_date !== '') {
+                return $solve_date;
+            }
+
+            $close_date = trim((string) ($ticket->fields['closedate'] ?? ''));
+            if ($close_date !== '') {
+                return $close_date;
+            }
+        }
+
         $pause_date = self::resolveAssignmentPauseDate($ticket);
         if ($pause_date !== null) {
             return $pause_date;
-        }
-
-        if (!self::isClosedStatus((int) ($ticket->fields['status'] ?? 0))) {
-            return date('Y-m-d H:i:s');
         }
 
         return date('Y-m-d H:i:s');
