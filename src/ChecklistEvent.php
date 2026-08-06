@@ -47,6 +47,8 @@ class PluginTregopluginsChecklistEvent extends CommonDBTM
     ): void {
         global $DB;
 
+        self::migrateSchema();
+
         $DB->insert(self::TABLE, [
             'taskchecklists_id'     => $taskchecklists_id,
             'taskchecklistitems_id' => $taskchecklistitems_id ?? 0,
@@ -73,7 +75,7 @@ class PluginTregopluginsChecklistEvent extends CommonDBTM
                 `id`                     int {$default_key_sign} NOT NULL AUTO_INCREMENT,
                 `taskchecklists_id`      int {$default_key_sign} NOT NULL,
                 `taskchecklistitems_id`  int {$default_key_sign} NOT NULL DEFAULT 0,
-                `tickets_id`             int {$default_key_sign} NOT NULL,
+                `tickets_id`             bigint unsigned NOT NULL,
                 `tickettasks_id`         int {$default_key_sign} NOT NULL,
                 `users_id`               int {$default_key_sign} NOT NULL DEFAULT 0,
                 `action`                 varchar(64) NOT NULL DEFAULT '',
@@ -102,5 +104,36 @@ class PluginTregopluginsChecklistEvent extends CommonDBTM
         }
 
         return true;
+    }
+
+    /**
+     * Self-heals installs whose `tickets_id` column predates the switch to
+     * bigint unsigned. A ticket id past the signed/unsigned int range makes
+     * every insert into this table fail at the DB layer ("Out of range
+     * value"); DBmysql::insert() logs that to the SQL log but doesn't throw,
+     * so it never surfaces as a PHP exception here. Checked lazily on write
+     * (like PluginTregopluginsOlaReportRepository::migrateSchema()) rather
+     * than only at plugin update, so an existing install self-repairs
+     * without requiring a manual Setup > Plugins > Update.
+     */
+    private static function migrateSchema(): void
+    {
+        global $DB;
+
+        foreach ($DB->listFields(self::TABLE) as $name => $field) {
+            if ($name !== 'tickets_id') {
+                continue;
+            }
+
+            $type = strtolower((string) ($field['Type'] ?? ''));
+            if (strpos($type, 'bigint') !== false && strpos($type, 'unsigned') !== false) {
+                return;
+            }
+            break;
+        }
+
+        $migration = new Migration(PLUGIN_TREGOPLUGINS_VERSION);
+        $migration->changeField(self::TABLE, 'tickets_id', 'tickets_id', 'bigint unsigned NOT NULL');
+        $migration->executeMigration();
     }
 }

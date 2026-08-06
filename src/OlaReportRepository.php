@@ -93,8 +93,7 @@ class PluginTregopluginsOlaReportRepository
             self::TABLE,
             'tickets_id',
             'tickets_id',
-            'bigint unsigned',
-            ['value' => 0]
+            "bigint unsigned NOT NULL DEFAULT '0'"
         );
         $migration->executeMigration();
     }

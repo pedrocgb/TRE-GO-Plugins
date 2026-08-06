@@ -54,6 +54,8 @@ class PluginTregopluginsChecklistInstantiator
             return null;
         }
 
+        PluginTregopluginsTaskChecklist::migrateSchema();
+
         try {
             $DB->beginTransaction();
 

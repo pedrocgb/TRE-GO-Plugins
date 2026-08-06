@@ -188,6 +188,8 @@ class PluginTregopluginsTicketDispatchService
     ): void {
         global $DB;
 
+        self::migrateAuditSchema();
+
         $DB->insert(self::AUDIT_TABLE, [
             'tickets_id'        => $tickets_id,
             'users_id'          => $users_id,
@@ -207,7 +209,7 @@ class PluginTregopluginsTicketDispatchService
 
             $query = "CREATE TABLE `" . self::AUDIT_TABLE . "` (
                 `id`                int {$default_key_sign} NOT NULL AUTO_INCREMENT,
-                `tickets_id`        int {$default_key_sign} NOT NULL DEFAULT 0,
+                `tickets_id`        bigint unsigned NOT NULL DEFAULT 0,
                 `users_id`          int {$default_key_sign} NOT NULL DEFAULT 0,
                 `source_groups_id`  varchar(255) NOT NULL DEFAULT '',
                 `target_groups_id`  varchar(255) NOT NULL DEFAULT '',
@@ -233,5 +235,32 @@ class PluginTregopluginsTicketDispatchService
         }
 
         return true;
+    }
+
+    /**
+     * Same self-heal as PluginTregopluginsTaskChecklist::migrateSchema():
+     * a ticket id past this column's range makes every audit insert fail
+     * silently at the DB layer (logged to SQL log, no PHP exception), so an
+     * existing install needs to widen it lazily rather than only on update.
+     */
+    private static function migrateAuditSchema(): void
+    {
+        global $DB;
+
+        foreach ($DB->listFields(self::AUDIT_TABLE) as $name => $field) {
+            if ($name !== 'tickets_id') {
+                continue;
+            }
+
+            $type = strtolower((string) ($field['Type'] ?? ''));
+            if (strpos($type, 'bigint') !== false && strpos($type, 'unsigned') !== false) {
+                return;
+            }
+            break;
+        }
+
+        $migration = new Migration(PLUGIN_TREGOPLUGINS_VERSION);
+        $migration->changeField(self::AUDIT_TABLE, 'tickets_id', 'tickets_id', 'bigint unsigned NOT NULL DEFAULT 0');
+        $migration->executeMigration();
     }
 }
