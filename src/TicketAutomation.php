@@ -100,16 +100,22 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        // Only an actual dispatch/escalation restarts the OLA TTO cycle.
-        // Assigning a technician through the normal ticket actor form can
-        // also add/change the group actor (e.g. the tech's own group), and
-        // that must never reset an already-running clock.
-        if (!PluginTregopluginsTicketDispatchService::isDispatching()) {
+        if ((int) ($item->fields['type'] ?? $item->input['type'] ?? 0) !== CommonITILActor::ASSIGN) {
             return;
         }
 
-        if ((int) ($item->fields['type'] ?? $item->input['type'] ?? 0) !== CommonITILActor::ASSIGN) {
-            return;
+        // The OLA TTO cycle should initialize exactly once, the first time
+        // a technician group is ever attached to this ticket (whether that
+        // happens at creation via the default dispatch group, or any later
+        // first assignment). Any group actor after that first one is a
+        // reassignment of an already-running clock, and only an actual
+        // dispatch/escalation is allowed to restart it -- a technician
+        // assigned through the normal ticket actor form can also touch the
+        // group actor (e.g. the tech's own group) and must never reset it.
+        if (self::hasOtherAssignGroup((int) $item->getID(), (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0))) {
+            if (!PluginTregopluginsTicketDispatchService::isDispatching()) {
+                return;
+            }
         }
 
         $ticket = self::getTicketFromActorLink($item);
@@ -118,6 +124,19 @@ class PluginTregopluginsTicketAutomation
         }
 
         self::restartOlaTtoCycle($ticket, (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0));
+    }
+
+    private static function hasOtherAssignGroup(int $exclude_group_ticket_id, int $tickets_id): bool
+    {
+        if ($tickets_id <= 0) {
+            return false;
+        }
+
+        return countElementsInTable(Group_Ticket::getTable(), [
+            'tickets_id' => $tickets_id,
+            'type'       => CommonITILActor::ASSIGN,
+            ['NOT'       => ['id' => $exclude_group_ticket_id]],
+        ]) > 0;
     }
 
     public static function restartOlaTtoForGroupChange(CommonDBTM $item): void

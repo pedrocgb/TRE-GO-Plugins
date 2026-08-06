@@ -72,6 +72,19 @@ class PluginTregopluginsTicketDispatchService
         // _do_not_compute_status blocks that so the configured status wins.
         $item->input['status'] = PluginTregopluginsTicketDispatchConfig::getCreationStatus();
         $item->input['_do_not_compute_status'] = true;
+
+        // GLPI core stamps takeintoaccountdate the moment ANY assign-type
+        // actor is attached, group included (see
+        // CommonITILObject::updateActors()). Left alone, that fires right
+        // here for this synthetic default-dispatch-group placeholder, and
+        // PluginTregopluginsTicketAutomation::markOlaTtoAssigned()'s
+        // "already set, don't overwrite" guard then permanently locks
+        // takeintoaccountdate to ticket-creation time -- a real technician
+        // assigned later never gets to correct it, and the OLA TTO progress
+        // bar reads as if the clock stopped at t=0. _do_not_compute_takeintoaccount
+        // blocks core's stamp here so markOlaTtoAssigned() (which fires on
+        // the real actor's own add) is the one that sets it.
+        $item->input['_do_not_compute_takeintoaccount'] = true;
     }
 
     /**
