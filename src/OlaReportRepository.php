@@ -769,7 +769,7 @@ class PluginTregopluginsOlaReportRepository
         return $open !== null ? (int) ($open['groups_id'] ?? 0) : 0;
     }
 
-    public static function getLastKnownGroupId(int $ticket_id): int
+    private static function getLastKnownGroupId(int $ticket_id): int
     {
         global $DB;
 

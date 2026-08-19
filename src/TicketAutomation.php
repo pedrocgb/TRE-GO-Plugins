@@ -94,27 +94,7 @@ class PluginTregopluginsTicketAutomation
         $item->input['_solutiontemplates_id'] = $solution_template_id;
     }
 
-    /**
-     * Initializes the OLA TTO cycle exactly once, unconditionally, for a
-     * ticket's initial assign group at creation. Kept separate from
-     * restartOlaTtoForGroupAssignment() below because the relative firing
-     * order between this (Ticket ITEM_ADD) and that (Group_Ticket ITEM_ADD)
-     * for the same creation-time group actor isn't guaranteed -- giving
-     * creation its own unconditional entry point sidesteps the ambiguity
-     * instead of relying on a "no group actor exists yet" special case that
-     * both paths would otherwise have to agree on.
-     */
-    public static function initializeOlaTtoCycle(Ticket $ticket): void
-    {
-        $group_id = PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId($ticket->getID());
-        if ($group_id <= 0) {
-            return;
-        }
-
-        self::restartOlaTtoCycle($ticket, $group_id);
-    }
-
-    public static function restartOlaTtoForGroupAssignment(CommonDBTM $item, int $previous_group_id = 0): void
+    public static function restartOlaTtoForGroupAssignment(CommonDBTM $item): void
     {
         if (!$item instanceof Group_Ticket) {
             return;
@@ -124,20 +104,15 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        $new_group_id = (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0);
-
-        // A previously-known group on record means this ticket's OLA TTO
-        // cycle already started (at creation, via initializeOlaTtoCycle()).
-        // The same group re-asserted by unrelated form churn (e.g.
-        // assigning a technician through the normal ticket actor form can
-        // also touch the group actor) must never reset it, and a real
-        // group change only restarts the clock when it's an actual
-        // dispatch/escalation, not a plain assignment.
-        if ($previous_group_id > 0) {
-            if ($previous_group_id === $new_group_id) {
-                return;
-            }
-
+        // The OLA TTO cycle should initialize exactly once, the first time
+        // a technician group is ever attached to this ticket (whether that
+        // happens at creation via the default dispatch group, or any later
+        // first assignment). Any group actor after that first one is a
+        // reassignment of an already-running clock, and only an actual
+        // dispatch/escalation is allowed to restart it -- a technician
+        // assigned through the normal ticket actor form can also touch the
+        // group actor (e.g. the tech's own group) and must never reset it.
+        if (self::hasOtherAssignGroup((int) $item->getID(), (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0))) {
             if (!PluginTregopluginsTicketDispatchService::isDispatching()) {
                 return;
             }
@@ -148,7 +123,20 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        self::restartOlaTtoCycle($ticket, $new_group_id);
+        self::restartOlaTtoCycle($ticket, (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0));
+    }
+
+    private static function hasOtherAssignGroup(int $exclude_group_ticket_id, int $tickets_id): bool
+    {
+        if ($tickets_id <= 0) {
+            return false;
+        }
+
+        return countElementsInTable(Group_Ticket::getTable(), [
+            'tickets_id' => $tickets_id,
+            'type'       => CommonITILActor::ASSIGN,
+            ['NOT'       => ['id' => $exclude_group_ticket_id]],
+        ]) > 0;
     }
 
     public static function restartOlaTtoForGroupChange(CommonDBTM $item): void
@@ -162,7 +150,7 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        self::restartOlaTtoForGroupAssignment($item, (int) ($item->oldvalues['groups_id'] ?? 0));
+        self::restartOlaTtoForGroupAssignment($item);
     }
 
     public static function markOlaTtoAssigned(CommonDBTM $item): void
