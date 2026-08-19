@@ -94,13 +94,34 @@ class PluginTregopluginsTicketAutomation
         $item->input['_solutiontemplates_id'] = $solution_template_id;
     }
 
-    public static function restartOlaTtoForGroupAssignment(CommonDBTM $item): void
+    public static function restartOlaTtoForGroupAssignment(CommonDBTM $item, ?int $pre_event_group_id = null): void
     {
         if (!$item instanceof Group_Ticket) {
             return;
         }
 
         if ((int) ($item->fields['type'] ?? $item->input['type'] ?? 0) !== CommonITILActor::ASSIGN) {
+            return;
+        }
+
+        $tickets_id = (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0);
+        $new_group_id = (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0);
+
+        // GLPI's ticket actor form can delete-and-recreate this exact same
+        // assign-group row as a side effect of adding an unrelated actor
+        // (e.g. assigning a technician while the ticket still carries the
+        // default dispatch group). hasOtherAssignGroup() below only sees
+        // currently-live Group_Ticket rows, so that churn makes it think
+        // this is the ticket's very first group ever -- fooling it into an
+        // unconditional restart that wipes an already-running clock back
+        // to 0%. $pre_event_group_id is the group on record immediately
+        // BEFORE this event -- Group_Ticket's own oldvalues for an update,
+        // or a snapshot taken before this add's own bookkeeping runs (see
+        // setup.php) -- so, unlike a live row count, it isn't fooled by
+        // this same event's own pass-history writes. If the group being
+        // (re)asserted is already the one on record, this is a no-op
+        // re-add, never a real change.
+        if ($pre_event_group_id !== null && $pre_event_group_id > 0 && $pre_event_group_id === $new_group_id) {
             return;
         }
 
@@ -112,7 +133,7 @@ class PluginTregopluginsTicketAutomation
         // dispatch/escalation is allowed to restart it -- a technician
         // assigned through the normal ticket actor form can also touch the
         // group actor (e.g. the tech's own group) and must never reset it.
-        if (self::hasOtherAssignGroup((int) $item->getID(), (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0))) {
+        if (self::hasOtherAssignGroup((int) $item->getID(), $tickets_id)) {
             if (!PluginTregopluginsTicketDispatchService::isDispatching()) {
                 return;
             }
@@ -123,7 +144,7 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        self::restartOlaTtoCycle($ticket, (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0));
+        self::restartOlaTtoCycle($ticket, $new_group_id);
     }
 
     private static function hasOtherAssignGroup(int $exclude_group_ticket_id, int $tickets_id): bool
@@ -150,7 +171,7 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        self::restartOlaTtoForGroupAssignment($item);
+        self::restartOlaTtoForGroupAssignment($item, (int) ($item->oldvalues['groups_id'] ?? 0));
     }
 
     public static function markOlaTtoAssigned(CommonDBTM $item): void

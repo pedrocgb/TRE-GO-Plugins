@@ -262,8 +262,14 @@ function plugin_tregoplugins_on_ticket_group_add(CommonDBTM $item): void
     if (!PluginTregopluginsOlaConfig::isEnabled()) {
         return;
     }
+    // Snapshot the ticket's last-known assign group before
+    // handleGroupAssignment() below writes this same event into that same
+    // pass-history table (see restartOlaTtoForGroupAssignment()'s
+    // $pre_event_group_id doc comment).
+    $tickets_id = (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0);
+    $pre_event_group_id = PluginTregopluginsOlaReportRepository::getLastKnownGroupId($tickets_id);
     PluginTregopluginsOlaReportRepository::handleGroupAssignment($item);
-    PluginTregopluginsTicketAutomation::restartOlaTtoForGroupAssignment($item);
+    PluginTregopluginsTicketAutomation::restartOlaTtoForGroupAssignment($item, $pre_event_group_id);
 }
 
 function plugin_tregoplugins_on_ticket_group_update(CommonDBTM $item): void
