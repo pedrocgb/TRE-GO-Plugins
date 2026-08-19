@@ -255,6 +255,7 @@ function plugin_tregoplugins_on_ticket_update(CommonDBTM $item): void
 function plugin_tregoplugins_on_ticket_pre_update(CommonDBTM $item): void
 {
     PluginTregopluginsTicketAutomation::prepareTicketClosure($item);
+    PluginTregopluginsTicketAutomation::preventPrematureTakeIntoAccount($item);
 }
 
 function plugin_tregoplugins_on_ticket_group_add(CommonDBTM $item): void

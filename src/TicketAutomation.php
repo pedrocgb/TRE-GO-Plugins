@@ -68,6 +68,83 @@ class PluginTregopluginsTicketAutomation
         $item->input['_do_not_compute_status'] = true;
     }
 
+    /**
+     * GLPI core stamps takeintoaccountdate the instant ANY assign-type
+     * actor is attached, group included (see CommonITILObject::updateActors()
+     * / Ticket::pre_updateInDB()), whenever the acting session user already
+     * belongs to that group. TicketDispatchService::normalizeGroupOnCreation()
+     * already blocks this for the ticket-dispatch module's own
+     * creation-time default-group flow, but that only covers the original
+     * Ticket::add() input -- a group attached via a LATER Ticket::update()
+     * (e.g. a RuleTicket action, or any manual/automated group assignment
+     * that isn't the dispatch module) is not protected at all. Left alone,
+     * that permanently locks takeintoaccountdate to the group-attachment
+     * moment; markOlaTtoAssigned()'s "already set" guard then never gets a
+     * chance to correct it once a real technician is actually assigned
+     * later, and the OLA TTO progress bar reads as if it were taken into
+     * account at t=0 (0%) forever.
+     */
+    public static function preventPrematureTakeIntoAccount(CommonDBTM $item): void
+    {
+        if (!$item instanceof Ticket || !is_array($item->input)) {
+            return;
+        }
+
+        if (!PluginTregopluginsOlaConfig::isEnabled()) {
+            return;
+        }
+
+        if (!empty($item->input['_do_not_compute_takeintoaccount'])) {
+            return;
+        }
+
+        $has_group_assign = !empty($item->input['_groups_id_assign'])
+            || !empty($item->input['_additional_groups_assigns'])
+            || (($item->input['_itil_assign']['_type'] ?? null) === 'group');
+
+        if (!$has_group_assign) {
+            return;
+        }
+
+        $has_user_or_supplier_assign = !empty($item->input['_users_id_assign'])
+            || !empty($item->input['_additional_assigns'])
+            || !empty($item->input['_suppliers_id_assign'])
+            || in_array($item->input['_itil_assign']['_type'] ?? null, ['user', 'supplier'], true);
+
+        if ($has_user_or_supplier_assign) {
+            return;
+        }
+
+        // Not just this input -- a ticket already carrying a real
+        // technician/supplier from an earlier action is genuinely taken
+        // into account, even if this particular update only touches the
+        // group.
+        if (self::hasRealAssignedActor((int) $item->getID())) {
+            return;
+        }
+
+        $item->input['_do_not_compute_takeintoaccount'] = true;
+    }
+
+    private static function hasRealAssignedActor(int $ticket_id): bool
+    {
+        if ($ticket_id <= 0) {
+            return false;
+        }
+
+        if (countElementsInTable(Ticket_User::getTable(), [
+            'tickets_id' => $ticket_id,
+            'type'       => CommonITILActor::ASSIGN,
+        ]) > 0) {
+            return true;
+        }
+
+        return countElementsInTable(Supplier_Ticket::getTable(), [
+            'tickets_id' => $ticket_id,
+            'type'       => CommonITILActor::ASSIGN,
+        ]) > 0;
+    }
+
     public static function prepareTicketClosure(CommonDBTM $item): void
     {
         if (!$item instanceof Ticket) {
