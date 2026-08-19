@@ -50,6 +50,12 @@ class PluginTregopluginsMainProfile extends CommonDBTM
                 'rights'   => [READ => __('Read')],
             ],
             [
+                'itemtype' => PluginTregopluginsOlaConfig::class,
+                'label'    => __('Configurar o módulo de Tempo para Atribuição com OLA (Setup)', 'tregoplugins'),
+                'field'    => PluginTregopluginsOlaConfig::$rightname,
+                'rights'   => [READ => __('Read'), UPDATE => __('Update')],
+            ],
+            [
                 'itemtype' => PluginTregopluginsKbVisibilityConfig::class,
                 'label'    => 'Permitir gerenciar a "Correção de Visibilidade da Base de Conhecimento"',
                 'field'    => PluginTregopluginsKbVisibilityConfig::$rightname,

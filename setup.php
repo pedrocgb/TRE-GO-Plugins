@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '2.4.1');
+define('PLUGIN_TREGOPLUGINS_VERSION', '2.5.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
@@ -101,10 +101,13 @@ function plugin_init_tregoplugins(): void
 
     // Same "disabled means not called" guard: OLA TTO tracking hooks, the
     // OLA Report menu entry/pages, and their assets only register once the
-    // module is turned on in Setup.
-    $ola_enabled = $DB instanceof DBmysql
-        && $DB->tableExists(PluginTregopluginsOlaConfig::TABLE)
-        && PluginTregopluginsOlaConfig::isEnabled();
+    // module is turned on in Setup. No tableExists() guard here (unlike
+    // ticket-dispatch/checklist above) — isEnabled() self-heals the config
+    // table via ensureSchema(), defaulting to enabled=1, so an install that
+    // only received updated files (no formal reinstall/update) still gets
+    // correct behavior on the very next request instead of silently
+    // defaulting to disabled.
+    $ola_enabled = $DB instanceof DBmysql && PluginTregopluginsOlaConfig::isEnabled();
 
     $css_files = ['public/tregoplugins.css'];
     $js_files  = [];
@@ -332,6 +335,7 @@ function plugin_tregoplugins_do_install(): bool
     PluginTregopluginsOlaConfig::install();
     PluginTregopluginsOlaReportRepository::install();
     PluginTregopluginsOlaReport::installRights();
+    PluginTregopluginsOlaConfig::installRights();
     PluginTregopluginsKbVisibilityConfig::installRights();
     PluginTregopluginsTicketDispatchConfig::install();
     PluginTregopluginsTicketDispatchService::install();
@@ -358,6 +362,7 @@ function plugin_tregoplugins_do_uninstall(): bool
     PluginTregopluginsTicketDispatchConfig::uninstall();
     PluginTregopluginsKbVisibilityConfig::uninstallRights();
     PluginTregopluginsOlaReport::uninstallRights();
+    PluginTregopluginsOlaConfig::uninstallRights();
     PluginTregopluginsOlaReportRepository::uninstall();
     PluginTregopluginsOlaBusinessTimeService::uninstall();
     PluginTregopluginsOlaConfig::uninstall();

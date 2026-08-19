@@ -2,7 +2,7 @@
 
 include __DIR__ . '/../../../inc/includes.php';
 
-Session::checkRight(PluginTregopluginsOlaConfig::getRightname(), UPDATE);
+Session::checkRight(PluginTregopluginsOlaConfig::$rightname, UPDATE);
 
 $config = new PluginTregopluginsOlaConfig();
 

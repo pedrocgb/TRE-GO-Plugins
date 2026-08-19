@@ -14,6 +14,12 @@
  */
 class PluginTregopluginsOlaConfig extends CommonDBTM
 {
+    // Dedicated right (not PluginTregopluginsOlaReport::$rightname): that
+    // right's matrix row in MainProfile only ever offers a READ checkbox,
+    // so no profile can ever be granted UPDATE on it — this config's own
+    // right exposes both READ and UPDATE in the matrix (see MainProfile.php).
+    public static $rightname = 'plugin_tregoplugins_olaconfig';
+
     public const TABLE = 'glpi_plugin_tregoplugins_olaconfigs';
 
     private const CONFIG_ID = 1;
@@ -26,24 +32,14 @@ class PluginTregopluginsOlaConfig extends CommonDBTM
         return self::TABLE;
     }
 
-    /**
-     * Reuses PluginTregopluginsOlaReport's right rather than a static
-     * property default, since a class's static property cannot be used as
-     * another property's compile-time default value in PHP.
-     */
-    public static function getRightname(): string
-    {
-        return PluginTregopluginsOlaReport::$rightname;
-    }
-
     public static function canView(): bool
     {
-        return Session::haveRight(self::getRightname(), READ);
+        return Session::haveRight(self::$rightname, READ);
     }
 
     public static function canUpdate(): bool
     {
-        return Session::haveRight(self::getRightname(), UPDATE);
+        return Session::haveRight(self::$rightname, UPDATE);
     }
 
     public static function getTypeName($nb = 0): string
@@ -81,11 +77,18 @@ class PluginTregopluginsOlaConfig extends CommonDBTM
             return self::$cache;
         }
 
+        // Self-heal: the table may not exist yet on an install that only
+        // received updated plugin files without going through a formal
+        // reinstall/update. Querying a missing table throws on GLPI 11
+        // (RuntimeException, unlike GLPI 10's silent failure), so ensure
+        // the schema exists before reading it either way.
+        self::ensureSchema();
+
         $config = new self();
         if ($config->getFromDB(self::CONFIG_ID)) {
             self::$cache = $config->fields;
         } else {
-            self::$cache = ['id' => self::CONFIG_ID, 'enabled' => 0];
+            self::$cache = ['id' => self::CONFIG_ID, 'enabled' => 1];
         }
 
         return self::$cache;
@@ -105,23 +108,30 @@ class PluginTregopluginsOlaConfig extends CommonDBTM
 
     public static function install(): bool
     {
-        global $DB;
-
-        if (!$DB->tableExists(self::TABLE)) {
-            $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
-
-            $query = "CREATE TABLE `" . self::TABLE . "` (
-                `id`      int {$default_key_sign} NOT NULL AUTO_INCREMENT,
-                `enabled` tinyint NOT NULL DEFAULT 1,
-                PRIMARY KEY (`id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=" . DBConnection::getDefaultCharset() . "
-                COLLATE=" . DBConnection::getDefaultCollation() . " ROW_FORMAT=DYNAMIC;";
-
-            $DB->doQueryOrDie($query, 'Create ' . self::TABLE);
-            $DB->insert(self::TABLE, ['id' => self::CONFIG_ID, 'enabled' => 1]);
-        }
+        self::ensureSchema();
 
         return true;
+    }
+
+    public static function ensureSchema(): void
+    {
+        global $DB;
+
+        if ($DB->tableExists(self::TABLE)) {
+            return;
+        }
+
+        $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
+
+        $query = "CREATE TABLE `" . self::TABLE . "` (
+            `id`      int {$default_key_sign} NOT NULL AUTO_INCREMENT,
+            `enabled` tinyint NOT NULL DEFAULT 1,
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=" . DBConnection::getDefaultCharset() . "
+            COLLATE=" . DBConnection::getDefaultCollation() . " ROW_FORMAT=DYNAMIC;";
+
+        $DB->doQueryOrDie($query, 'Create ' . self::TABLE);
+        $DB->insert(self::TABLE, ['id' => self::CONFIG_ID, 'enabled' => 1]);
     }
 
     public static function uninstall(): bool
@@ -133,6 +143,16 @@ class PluginTregopluginsOlaConfig extends CommonDBTM
         }
 
         return true;
+    }
+
+    public static function installRights(): void
+    {
+        PluginTregopluginsTicketDispatchProfile::seedRight(self::$rightname, true);
+    }
+
+    public static function uninstallRights(): void
+    {
+        ProfileRight::deleteProfileRights([self::$rightname]);
     }
 
     private static function showConfigForm(): void
