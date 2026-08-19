@@ -4,6 +4,11 @@ include __DIR__ . '/../../../inc/includes.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
+if (!PluginTregopluginsOlaConfig::isEnabled()) {
+    echo json_encode(['results' => []], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 Session::checkLoginUser();
 
 require_once __DIR__ . '/../src/OlaBusinessTimeService.php';

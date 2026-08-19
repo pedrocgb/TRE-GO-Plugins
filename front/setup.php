@@ -25,6 +25,9 @@ if (PluginTregopluginsKbVisibilityConfig::canView()) {
 if (PluginTregopluginsChecklistConfig::canView()) {
     PluginTregopluginsChecklistConfig::displayTabContentForItem($config);
 }
+if (PluginTregopluginsOlaConfig::canView()) {
+    PluginTregopluginsOlaConfig::displayTabContentForItem($config);
+}
 echo "</div>";
 
 if (PluginTregopluginsTicketDispatchConfig::canView()) {

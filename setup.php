@@ -59,6 +59,7 @@ require_once __DIR__ . '/src/ChecklistCompletionPolicy.php';
 require_once __DIR__ . '/src/ChecklistTimelinePresenter.php';
 require_once __DIR__ . '/src/MainProfile.php';
 require_once __DIR__ . '/src/OlaBusinessTimeService.php';
+require_once __DIR__ . '/src/OlaConfig.php';
 require_once __DIR__ . '/src/OlaProgressService.php';
 require_once __DIR__ . '/src/OlaReport.php';
 require_once __DIR__ . '/src/OlaReportRepository.php';
@@ -98,8 +99,19 @@ function plugin_init_tregoplugins(): void
         && $DB->tableExists(PluginTregopluginsChecklistConfig::TABLE)
         && PluginTregopluginsChecklistConfig::isEnabled();
 
-    $css_files = ['public/tregoplugins.css', 'public/ola-report.css'];
-    $js_files  = ['public/tregoplugins-ticket-list.js'];
+    // Same "disabled means not called" guard: OLA TTO tracking hooks, the
+    // OLA Report menu entry/pages, and their assets only register once the
+    // module is turned on in Setup.
+    $ola_enabled = $DB instanceof DBmysql
+        && $DB->tableExists(PluginTregopluginsOlaConfig::TABLE)
+        && PluginTregopluginsOlaConfig::isEnabled();
+
+    $css_files = ['public/tregoplugins.css'];
+    $js_files  = [];
+    if ($ola_enabled) {
+        $css_files[] = 'public/ola-report.css';
+        $js_files[]  = 'public/tregoplugins-ticket-list.js';
+    }
     if ($ticket_dispatch_enabled) {
         $css_files[] = 'public/css/ticket-dispatch.css';
         $js_files[]  = 'public/js/ticket-dispatch.js';
@@ -111,7 +123,10 @@ function plugin_init_tregoplugins(): void
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['tregoplugins'] = $css_files;
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['tregoplugins'] = $js_files;
 
-    $management_menu = [PluginTregopluginsOlaReport::class];
+    $management_menu = [];
+    if ($ola_enabled) {
+        $management_menu[] = PluginTregopluginsOlaReport::class;
+    }
     if ($checklist_enabled) {
         $management_menu[] = PluginTregopluginsChecklistTemplate::class;
     }
@@ -222,12 +237,16 @@ function plugin_tregoplugins_on_ticket_post_prepareadd(CommonDBTM $item): void
 function plugin_tregoplugins_on_ticket_add(CommonDBTM $item): void
 {
     PluginTregopluginsTicketAutomation::handleTicketCreated($item);
-    PluginTregopluginsOlaReportRepository::handleTicketCreated($item);
+    if (PluginTregopluginsOlaConfig::isEnabled()) {
+        PluginTregopluginsOlaReportRepository::handleTicketCreated($item);
+    }
 }
 
 function plugin_tregoplugins_on_ticket_update(CommonDBTM $item): void
 {
-    PluginTregopluginsOlaReportRepository::handleTicketUpdated($item);
+    if (PluginTregopluginsOlaConfig::isEnabled()) {
+        PluginTregopluginsOlaReportRepository::handleTicketUpdated($item);
+    }
 }
 
 function plugin_tregoplugins_on_ticket_pre_update(CommonDBTM $item): void
@@ -237,23 +256,35 @@ function plugin_tregoplugins_on_ticket_pre_update(CommonDBTM $item): void
 
 function plugin_tregoplugins_on_ticket_group_add(CommonDBTM $item): void
 {
+    if (!PluginTregopluginsOlaConfig::isEnabled()) {
+        return;
+    }
     PluginTregopluginsOlaReportRepository::handleGroupAssignment($item);
     PluginTregopluginsTicketAutomation::restartOlaTtoForGroupAssignment($item);
 }
 
 function plugin_tregoplugins_on_ticket_group_update(CommonDBTM $item): void
 {
+    if (!PluginTregopluginsOlaConfig::isEnabled()) {
+        return;
+    }
     PluginTregopluginsOlaReportRepository::handleGroupChange($item);
     PluginTregopluginsTicketAutomation::restartOlaTtoForGroupChange($item);
 }
 
 function plugin_tregoplugins_on_ticket_group_delete(CommonDBTM $item): void
 {
+    if (!PluginTregopluginsOlaConfig::isEnabled()) {
+        return;
+    }
     PluginTregopluginsOlaReportRepository::handleGroupRemoval($item);
 }
 
 function plugin_tregoplugins_on_ticket_assigned_actor_add(CommonDBTM $item): void
 {
+    if (!PluginTregopluginsOlaConfig::isEnabled()) {
+        return;
+    }
     PluginTregopluginsOlaReportRepository::handleTechnicianAssignment($item);
     PluginTregopluginsTicketAutomation::markOlaTtoAssigned($item);
 }
@@ -298,6 +329,7 @@ function plugin_tregoplugins_do_install(): bool
     PluginTregopluginsCategoryConfig::install();
     PluginTregopluginsKbVisibilityConfig::install();
     PluginTregopluginsOlaBusinessTimeService::install();
+    PluginTregopluginsOlaConfig::install();
     PluginTregopluginsOlaReportRepository::install();
     PluginTregopluginsOlaReport::installRights();
     PluginTregopluginsKbVisibilityConfig::installRights();
@@ -328,6 +360,7 @@ function plugin_tregoplugins_do_uninstall(): bool
     PluginTregopluginsOlaReport::uninstallRights();
     PluginTregopluginsOlaReportRepository::uninstall();
     PluginTregopluginsOlaBusinessTimeService::uninstall();
+    PluginTregopluginsOlaConfig::uninstall();
     PluginTregopluginsKbVisibilityConfig::uninstall();
     PluginTregopluginsCategoryConfig::uninstall();
 

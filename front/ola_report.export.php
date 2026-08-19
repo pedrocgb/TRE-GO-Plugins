@@ -4,6 +4,10 @@ include __DIR__ . '/../../../inc/includes.php';
 
 Session::checkRight(PluginTregopluginsOlaReport::$rightname, READ);
 
+if (!PluginTregopluginsOlaConfig::isEnabled()) {
+    Html::displayNotFoundError();
+}
+
 $group_id = (int) ($_GET['groups_id'] ?? 0);
 $date_from = export_date_param('date_from');
 $date_to = export_date_param('date_to');

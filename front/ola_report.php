@@ -4,6 +4,10 @@ include __DIR__ . '/../../../inc/includes.php';
 
 Session::checkRight(PluginTregopluginsOlaReport::$rightname, READ);
 
+if (!PluginTregopluginsOlaConfig::isEnabled()) {
+    Html::displayNotFoundError();
+}
+
 PluginTregopluginsOlaReportRepository::ensureSchema();
 PluginTregopluginsOlaBusinessTimeService::ensureSchema();
 
