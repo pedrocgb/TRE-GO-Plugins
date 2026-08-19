@@ -793,6 +793,34 @@ class PluginTregopluginsOlaReportRepository
         return (int) ($row['groups_id'] ?? 0);
     }
 
+    /**
+     * @return array<string, mixed>|null The ticket's most recent OLA Report
+     *                                    pass row (any group, open or
+     *                                    closed), or null if none exists.
+     */
+    public static function getLatestPassSnapshot(int $ticket_id): ?array
+    {
+        global $DB;
+
+        if ($ticket_id <= 0 || !$DB->tableExists(self::TABLE)) {
+            return null;
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => ['groups_id', 'assigned_at', 'working_seconds_to_assignment'],
+            'FROM'   => self::TABLE,
+            'WHERE'  => ['tickets_id' => $ticket_id],
+            'ORDER'  => ['pass_started_at DESC', 'id DESC'],
+            'LIMIT'  => 1,
+        ]);
+
+        if (count($iterator) === 0) {
+            return null;
+        }
+
+        return $iterator->current();
+    }
+
     private static function getPassStartForTicket(Ticket $ticket): string
     {
         $started_at = trim((string) ($ticket->fields['ola_tto_begin_date'] ?? ''));

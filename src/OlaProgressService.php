@@ -46,15 +46,27 @@ class PluginTregopluginsOlaProgressService
             return null;
         }
 
-        $current_date = self::resolveProgressEndDate($ticket);
         $group_id = PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId((int) $ticket->getID());
+
+        // Prefer the plugin's own OLA Report pass-history timer once a real
+        // technician is assigned, instead of recomputing "elapsed time"
+        // from native ticket fields (takeintoaccountdate/ola_tto_begin_date).
+        // working_seconds_to_assignment is written exactly once, at the
+        // real assignment moment, by OlaReportRepository::assignOpenPass()
+        // using this same group's pass_started_at -- it does not depend on
+        // GLPI core's takeintoaccountdate stamping at all, so it stays
+        // correct even in cases not covered by
+        // TicketAutomation::preventPrematureTakeIntoAccount().
+        $tracked_elapsed = self::resolvePassTrackedElapsedSeconds((int) $ticket->getID(), $group_id);
+
+        $current_date = self::resolveProgressEndDate($ticket);
         $currenttime = 0;
         $totaltime = 0;
         $waitingtime = 0;
 
         $ola_id = (int) ($ticket->fields['olas_id_tto'] ?? 0);
         if ($ola_id > 0) {
-            $currenttime = PluginTregopluginsOlaBusinessTimeService::getActiveTimeBetween(
+            $currenttime = $tracked_elapsed ?? PluginTregopluginsOlaBusinessTimeService::getActiveTimeBetween(
                 $ticket,
                 $start_date,
                 $current_date,
@@ -78,10 +90,10 @@ class PluginTregopluginsOlaProgressService
 
             $calendar = new Calendar();
             if ($calendar_id > 0 && $calendar->getFromDB($calendar_id)) {
-                $currenttime = $calendar->getActiveTimeBetween($start_date, $current_date);
+                $currenttime = $tracked_elapsed ?? $calendar->getActiveTimeBetween($start_date, $current_date);
                 $totaltime = $calendar->getActiveTimeBetween($start_date, $due_date);
             } else {
-                $currenttime = strtotime($current_date) - strtotime($start_date);
+                $currenttime = $tracked_elapsed ?? (strtotime($current_date) - strtotime($start_date));
                 $totaltime = strtotime($due_date) - strtotime($start_date);
             }
         }
@@ -91,6 +103,34 @@ class PluginTregopluginsOlaProgressService
             'totaltime'   => max(0, (int) $totaltime),
             'waitingtime' => $waitingtime,
         ];
+    }
+
+    /**
+     * @return int|null Elapsed active seconds tracked by our own OLA Report
+     *                   pass history for the ticket's *current* group cycle,
+     *                   or null if no reliable tracked value applies (not
+     *                   assigned yet in this cycle, stale pass from a prior
+     *                   group, or OLA Report tracking unavailable) -- the
+     *                   caller then falls back to the native-field
+     *                   calculation unchanged.
+     */
+    private static function resolvePassTrackedElapsedSeconds(int $ticket_id, int $group_id): ?int
+    {
+        if ($ticket_id <= 0 || $group_id <= 0) {
+            return null;
+        }
+
+        $pass = PluginTregopluginsOlaReportRepository::getLatestPassSnapshot($ticket_id);
+        if ($pass === null || (int) ($pass['groups_id'] ?? 0) !== $group_id) {
+            return null;
+        }
+
+        $assigned_at = trim((string) ($pass['assigned_at'] ?? ''));
+        if ($assigned_at === '') {
+            return null;
+        }
+
+        return max(0, (int) ($pass['working_seconds_to_assignment'] ?? 0));
     }
 
     private static function computePercent(
