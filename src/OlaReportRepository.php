@@ -270,7 +270,7 @@ class PluginTregopluginsOlaReportRepository
                 't.is_deleted'    => 0,
                 't.olas_id_tto'   => ['>', 0],
                 'p.pass_started_at' => ['<=', $date_to],
-                new \Glpi\DBAL\QueryExpression(
+                new \QueryExpression(
                     'COALESCE(' . $DB->quoteName('p.pass_ended_at') . ', '
                     . $DB->quoteName('p.assigned_at') . ', NOW()) >= '
                     . $DB->quote($date_from)
