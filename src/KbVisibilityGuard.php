@@ -50,6 +50,15 @@ class PluginTregopluginsKbVisibilityGuard
         ob_start([self::class, 'filterOutput']);
     }
 
+    private static function reconnectDb(): void
+    {
+        global $DB;
+
+        if ($DB instanceof DBmysql) {
+            $DB->connect();
+        }
+    }
+
     private static function isGuardedScript(): bool
     {
         $script = $_SERVER['SCRIPT_NAME'] ?? '';
@@ -79,6 +88,18 @@ class PluginTregopluginsKbVisibilityGuard
         ) {
             return $html;
         }
+
+        // By the time this output-buffer callback runs, Html::footer()
+        // (already executed while generating $html) has unconditionally
+        // closed the DB connection via closeDBConnections() -- the buffer
+        // only flushes at the true end of the request, well after that.
+        // Left alone, the getFromDB()/canViewItem() calls below fatal with
+        // "mysqli object is already closed" on every guarded page that
+        // actually contains a matching KB link. Reconnect first; DBmysql::
+        // connect() re-establishes a fresh connection with the same
+        // already-stored credentials regardless of current state, so this
+        // is safe even if the connection turns out to still be open.
+        self::reconnectDb();
 
         $ids = array_unique(array_map('intval', $matches[1]));
 
