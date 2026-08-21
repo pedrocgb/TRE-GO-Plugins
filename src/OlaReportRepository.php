@@ -489,6 +489,20 @@ class PluginTregopluginsOlaReportRepository
             return;
         }
 
+        // GLPI processes actor additions before deletions (see
+        // CommonITILObject::updateActors()), so by the time this group's
+        // removal fires, a newer group's own startGroupPass() call has
+        // typically ALREADY closed this group's pass as part of that
+        // transition -- this removal event is then redundant. Inserting
+        // another closed record here would use getPassStartForTicket(),
+        // which reads the ticket's *current* ola_tto_begin_date -- already
+        // overwritten by the newer group's restart by this point -- producing
+        // a spurious duplicate row timestamped like the new group's own
+        // pass, which corrupts getLastKnownGroupId()'s ordering.
+        if (self::hasMoreRecentClosedPassForGroup($ticket_id, $group_id)) {
+            return;
+        }
+
         self::insertClosedGroupPassIfMissing(
             $ticket,
             $group_id,
@@ -496,6 +510,25 @@ class PluginTregopluginsOlaReportRepository
             $event_at,
             $reason
         );
+    }
+
+    private static function hasMoreRecentClosedPassForGroup(int $ticket_id, int $group_id): bool
+    {
+        global $DB;
+
+        $iterator = $DB->request([
+            'SELECT' => ['is_open'],
+            'FROM'   => self::TABLE,
+            'WHERE'  => ['tickets_id' => $ticket_id, 'groups_id' => $group_id],
+            'ORDER'  => ['id DESC'],
+            'LIMIT'  => 1,
+        ]);
+
+        if (count($iterator) === 0) {
+            return false;
+        }
+
+        return (int) ($iterator->current()['is_open'] ?? 1) === 0;
     }
 
     private static function insertClosedGroupPassIfMissing(

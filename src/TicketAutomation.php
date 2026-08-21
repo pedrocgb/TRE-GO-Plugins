@@ -181,39 +181,33 @@ class PluginTregopluginsTicketAutomation
             return;
         }
 
-        $tickets_id = (int) ($item->fields['tickets_id'] ?? $item->input['tickets_id'] ?? 0);
         $new_group_id = (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0);
 
         // GLPI's ticket actor form can delete-and-recreate this exact same
         // assign-group row as a side effect of adding an unrelated actor
         // (e.g. assigning a technician while the ticket still carries the
-        // default dispatch group). hasOtherAssignGroup() below only sees
-        // currently-live Group_Ticket rows, so that churn makes it think
-        // this is the ticket's very first group ever -- fooling it into an
-        // unconditional restart that wipes an already-running clock back
-        // to 0%. $pre_event_group_id is the group on record immediately
-        // BEFORE this event -- Group_Ticket's own oldvalues for an update,
-        // or a snapshot taken before this add's own bookkeeping runs (see
-        // setup.php) -- so, unlike a live row count, it isn't fooled by
-        // this same event's own pass-history writes. If the group being
-        // (re)asserted is already the one on record, this is a no-op
-        // re-add, never a real change.
+        // default dispatch group). $pre_event_group_id is the group on
+        // record immediately BEFORE this event -- Group_Ticket's own
+        // oldvalues for an update, or a snapshot taken before this add's
+        // own bookkeeping runs (see setup.php) -- so, unlike a live row
+        // count, it isn't fooled by this same event's own pass-history
+        // writes. If the group being (re)asserted is already the one on
+        // record, this is a no-op re-add, never a real change: never
+        // restart. Any other case (a genuinely different previous group,
+        // or no previous group on record at all) is a real change and
+        // always restarts -- regardless of whether it went through the
+        // dispatch module's isDispatching() flag or a plain manual
+        // reassignment: CommonITILObject::updateActors() always adds the
+        // new assign-group actor BEFORE removing the old one (core
+        // processes all additions, then all deletions, in two separate
+        // passes), so a previous "only dispatch/escalation restarts it"
+        // gate based on "does another assign-group row still exist right
+        // now" was permanently true for every plain reassignment too --
+        // not just the dispatch flow -- and silently never restarted the
+        // clock for any group handoff done through the normal ticket
+        // actor form.
         if ($pre_event_group_id !== null && $pre_event_group_id > 0 && $pre_event_group_id === $new_group_id) {
             return;
-        }
-
-        // The OLA TTO cycle should initialize exactly once, the first time
-        // a technician group is ever attached to this ticket (whether that
-        // happens at creation via the default dispatch group, or any later
-        // first assignment). Any group actor after that first one is a
-        // reassignment of an already-running clock, and only an actual
-        // dispatch/escalation is allowed to restart it -- a technician
-        // assigned through the normal ticket actor form can also touch the
-        // group actor (e.g. the tech's own group) and must never reset it.
-        if (self::hasOtherAssignGroup((int) $item->getID(), $tickets_id)) {
-            if (!PluginTregopluginsTicketDispatchService::isDispatching()) {
-                return;
-            }
         }
 
         $ticket = self::getTicketFromActorLink($item);
@@ -222,19 +216,6 @@ class PluginTregopluginsTicketAutomation
         }
 
         self::restartOlaTtoCycle($ticket, $new_group_id);
-    }
-
-    private static function hasOtherAssignGroup(int $exclude_group_ticket_id, int $tickets_id): bool
-    {
-        if ($tickets_id <= 0) {
-            return false;
-        }
-
-        return countElementsInTable(Group_Ticket::getTable(), [
-            'tickets_id' => $tickets_id,
-            'type'       => CommonITILActor::ASSIGN,
-            ['NOT'       => ['id' => $exclude_group_ticket_id]],
-        ]) > 0;
     }
 
     public static function restartOlaTtoForGroupChange(CommonDBTM $item): void
