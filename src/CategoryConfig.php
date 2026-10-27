@@ -319,7 +319,7 @@ class PluginTregopluginsCategoryConfig
         if ($DB->fieldExists(self::TABLE, self::LEGACY_DB_FIELD)) {
             $DB->update(
                 self::TABLE,
-                ['solutiontemplates_id_request' => new \Glpi\DBAL\QueryExpression(
+                ['solutiontemplates_id_request' => new \QueryExpression(
                     $DB->quoteName(self::LEGACY_DB_FIELD)
                 )],
                 [
@@ -329,7 +329,7 @@ class PluginTregopluginsCategoryConfig
             );
             $DB->update(
                 self::TABLE,
-                ['solutiontemplates_id_incident' => new \Glpi\DBAL\QueryExpression(
+                ['solutiontemplates_id_incident' => new \QueryExpression(
                     $DB->quoteName(self::LEGACY_DB_FIELD)
                 )],
                 [
