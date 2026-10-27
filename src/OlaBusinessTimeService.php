@@ -107,6 +107,33 @@ class PluginTregopluginsOlaBusinessTimeService
         return self::normalizeDatetime(date('Y-m-d H:i:s', strtotime($start_date) + $duration));
     }
 
+    /**
+     * Inverse of getActiveTimeBetween(): the datetime reached after
+     * $active_seconds of business time from $start_date. Needed to turn
+     * takeintoaccount_delay_stat (business seconds) back into a date; plain
+     * wall-clock addition lands too early whenever the calendar skips
+     * nights, weekends or holidays.
+     */
+    public static function addActiveTime(
+        Ticket $ticket,
+        string $start_date,
+        int $active_seconds,
+        int $group_id = 0
+    ): ?string {
+        $start = strtotime($start_date);
+        if ($start === false || $active_seconds <= 0) {
+            return null;
+        }
+
+        $calendar = self::getCalendarForTicketGroup($ticket, $group_id);
+        if ($calendar instanceof Calendar) {
+            $end_date = $calendar->computeEndDate($start_date, $active_seconds);
+            return is_string($end_date) && $end_date !== '' ? self::normalizeDatetime($end_date) : null;
+        }
+
+        return date('Y-m-d H:i:s', $start + $active_seconds);
+    }
+
     public static function getActiveTimeBetween(
         Ticket $ticket,
         string $start_date,
@@ -185,7 +212,11 @@ class PluginTregopluginsOlaBusinessTimeService
         global $DB;
 
         self::ensureSchema();
-        if ($group_id <= 0) {
+        $group = new Group();
+        if ($group_id <= 0 || !$group->getFromDB($group_id) || (int) ($group->fields['is_assign'] ?? 0) !== 1) {
+            return false;
+        }
+        if ($calendar_id > 0 && !(new Calendar())->getFromDB($calendar_id)) {
             return false;
         }
 

@@ -175,8 +175,14 @@ class PluginTregopluginsOlaReportRepository
         $new_group_id = (int) ($item->fields['groups_id'] ?? $item->input['groups_id'] ?? 0);
         $event_at = self::currentDatetime();
 
-        if ($old_type === CommonITILActor::ASSIGN && $old_group_id > 0 && $old_group_id !== $new_group_id) {
-            self::closePreviousGroupPass($ticket, $old_group_id, 'escalated', $event_at);
+        if ($old_type === CommonITILActor::ASSIGN && $old_group_id > 0) {
+            if ($old_group_id !== $new_group_id) {
+                self::closePreviousGroupPass($ticket, $old_group_id, 'escalated', $event_at);
+            } elseif ($new_type !== CommonITILActor::ASSIGN) {
+                // Same group demoted to requester/observer: it no longer
+                // owns the ticket, same as removing it from the assignees.
+                self::closePreviousGroupPass($ticket, $old_group_id, 'group_removed', $event_at);
+            }
         }
 
         if ($new_type !== CommonITILActor::ASSIGN || $new_group_id <= 0) {
@@ -265,7 +271,7 @@ class PluginTregopluginsOlaReportRepository
                     ],
                 ],
             ],
-            'WHERE'     => [
+            'WHERE'     => getEntitiesRestrictCriteria('t') + [
                 'p.groups_id'     => $group_id,
                 't.is_deleted'    => 0,
                 't.olas_id_tto'   => ['>', 0],
@@ -603,7 +609,12 @@ class PluginTregopluginsOlaReportRepository
             $delay = (int) ($ticket->fields['takeintoaccount_delay_stat'] ?? 0);
             $start = trim((string) ($ticket->fields['ola_tto_begin_date'] ?? $ticket->fields['date'] ?? ''));
             if ($delay > 0 && $start !== '') {
-                $assigned_at = date('Y-m-d H:i:s', strtotime($start) + $delay);
+                $assigned_at = (string) PluginTregopluginsOlaBusinessTimeService::addActiveTime(
+                    $ticket,
+                    $start,
+                    $delay,
+                    PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId($ticket_id)
+                );
             }
         }
 

@@ -15,6 +15,9 @@ $web_dir = Plugin::getWebDir('tregoplugins');
 $page_url = $web_dir . '/front/ola_report.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_group_calendar'])) {
+    // Changing a group's calendar alters OLA computation for every ticket,
+    // so it needs the module's configuration right, not just report READ.
+    Session::checkRight(PluginTregopluginsOlaConfig::$rightname, UPDATE);
     Session::checkCSRF($_POST);
 
     $saved = PluginTregopluginsOlaBusinessTimeService::saveGroupCalendar(
@@ -54,6 +57,7 @@ echo "      <div>";
 echo "        <h1 class='tregoplugins-ola-report-title'>Relatório OLA</h1>";
 echo "        <p class='tregoplugins-ola-report-subtitle'>Histórico de Tempo de Atendimento por grupo, com calendário útil.</p>";
 echo "      </div>";
+if (PluginTregopluginsOlaConfig::canUpdate()) {
 echo "      <form class='row g-2 align-items-end' method='post' action='" . Html::entities_deep($page_url) . "'>";
 echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
 echo "        <input type='hidden' name='calendar_groups_id' value='" . (int) $selected_group_id . "'>";
@@ -67,6 +71,7 @@ foreach ($calendars as $calendar) {
 echo "        </select></div>";
 echo "        <div class='col-auto'><button class='btn btn-outline-primary' name='save_group_calendar' value='1'>Salvar</button></div>";
 echo "      </form>";
+}
 echo "    </div>";
 echo "  </div>";
 

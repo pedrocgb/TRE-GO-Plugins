@@ -354,7 +354,12 @@ HTML;
         $delay = (int) ($ticket->fields['takeintoaccount_delay_stat'] ?? 0);
         $start_date = self::resolveStartDate($ticket);
         if ($delay > 0 && $start_date !== null) {
-            return date('Y-m-d H:i:s', strtotime($start_date) + $delay);
+            return PluginTregopluginsOlaBusinessTimeService::addActiveTime(
+                $ticket,
+                $start_date,
+                $delay,
+                PluginTregopluginsOlaBusinessTimeService::getCurrentAssignedGroupId((int) $ticket->getID())
+            );
         }
 
         return null;

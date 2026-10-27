@@ -159,10 +159,21 @@ function export_csv(string $filename, array $data): void
 
     fwrite($out, "\xEF\xBB\xBF");
     foreach ($data as $row) {
-        fputcsv($out, $row, ';');
+        fputcsv($out, array_map('csv_neutralize_formula', $row), ';');
     }
     fclose($out);
     exit;
+}
+
+/**
+ * Ticket titles and names are user-controlled: a cell starting with one of
+ * these characters would run as a formula when the CSV is opened in a
+ * spreadsheet. Prefixing a quote makes it plain text.
+ */
+function csv_neutralize_formula(mixed $value): string
+{
+    $value = (string) $value;
+    return $value !== '' && strpbrk($value[0], "=+-@\t\r") !== false ? "'" . $value : $value;
 }
 
 function export_xlsx(string $filename, array $data): void
