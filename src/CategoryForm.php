@@ -127,7 +127,12 @@ class PluginTregopluginsCategoryForm
             return;
         }
 
-        $template_name = json_encode((string) $template->getName(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        // JSON_HEX_* keeps a template name containing "</script>" or quotes
+        // from breaking out of the inline <script> block below.
+        $template_name = json_encode(
+            (string) $template->getName(),
+            JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+        );
         $template_id = (int) $solution_template_id;
 
         echo "<script>
