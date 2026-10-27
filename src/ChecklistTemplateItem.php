@@ -56,6 +56,11 @@ class PluginTregopluginsChecklistTemplateItem extends CommonDBTM
 
     public function prepareInputForUpdate($input)
     {
+        // Callers authorize against the item's current template, so an item
+        // must never be re-parented by an update; position changes only
+        // through move().
+        unset($input['checklisttemplates_id'], $input['position']);
+
         if (isset($input['is_required'])) {
             $input['is_required'] = (int) $input['is_required'] === 1 ? 1 : 0;
         }

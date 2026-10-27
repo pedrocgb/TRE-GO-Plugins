@@ -70,8 +70,8 @@ class PluginTregopluginsChecklistBindingResolver
         }
 
         usort($candidates, static function (array $a, array $b): int {
-            return [$b['priority'], $b['specificity'], $b['exact_entity'], -$a['id']]
-                <=> [$a['priority'], $a['specificity'], $a['exact_entity'], -$b['id']];
+            return [$b['priority'], $b['specificity'], $b['exact_entity'], $a['id']]
+                <=> [$a['priority'], $a['specificity'], $a['exact_entity'], $b['id']];
         });
 
         foreach ($candidates as $candidate) {

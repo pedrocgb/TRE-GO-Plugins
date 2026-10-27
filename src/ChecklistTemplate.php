@@ -70,6 +70,9 @@ class PluginTregopluginsChecklistTemplate extends CommonDBTM
     public function prepareInputForAdd($input)
     {
         $input['entities_id']  = (int) ($input['entities_id'] ?? Session::getActiveEntity());
+        if (!self::canUseEntity($input['entities_id'])) {
+            return false;
+        }
         $input['is_recursive'] = isset($input['is_recursive']) && (int) $input['is_recursive'] === 1 ? 1 : 0;
         $input['is_active']    = isset($input['is_active']) && (int) $input['is_active'] === 1 ? 1 : 0;
         $input['allow_manual_apply'] = isset($input['allow_manual_apply']) && (int) $input['allow_manual_apply'] === 1 ? 1 : 0;
@@ -81,6 +84,21 @@ class PluginTregopluginsChecklistTemplate extends CommonDBTM
 
     public function prepareInputForUpdate($input)
     {
+        // `version` is owned by this class: only bumpVersion() (flagged) or
+        // the bump below may change it, never a posted form value.
+        $forced_bump = !empty($input['_tregoplugins_bump_version']);
+        unset($input['version'], $input['_tregoplugins_bump_version']);
+        if ($forced_bump) {
+            $input['version'] = ((int) ($this->fields['version'] ?? 1)) + 1;
+            return $input;
+        }
+
+        if (isset($input['entities_id'])) {
+            $input['entities_id'] = (int) $input['entities_id'];
+            if (!self::canUseEntity($input['entities_id'])) {
+                return false;
+            }
+        }
         if (isset($input['is_recursive'])) {
             $input['is_recursive'] = (int) $input['is_recursive'] === 1 ? 1 : 0;
         }
@@ -105,6 +123,19 @@ class PluginTregopluginsChecklistTemplate extends CommonDBTM
         return $input;
     }
 
+    private static function canUseEntity(int $entities_id): bool
+    {
+        if (Session::haveAccessToEntity($entities_id)) {
+            return true;
+        }
+        Session::addMessageAfterRedirect(
+            __('Você não tem acesso à entidade selecionada.', 'tregoplugins'),
+            false,
+            ERROR
+        );
+        return false;
+    }
+
     private static function normalizePolicy(string $policy): string
     {
         return array_key_exists($policy, self::getPolicies()) ? $policy : self::POLICY_TRACK_ONLY;
@@ -120,8 +151,8 @@ class PluginTregopluginsChecklistTemplate extends CommonDBTM
         $template = new self();
         if ($template->getFromDB($checklisttemplates_id)) {
             $template->update([
-                'id'      => $checklisttemplates_id,
-                'version' => ((int) $template->fields['version']) + 1,
+                'id'                         => $checklisttemplates_id,
+                '_tregoplugins_bump_version' => true,
             ]);
         }
     }

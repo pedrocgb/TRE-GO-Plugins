@@ -101,6 +101,23 @@ class PluginTregopluginsChecklistBinding extends CommonDBTM
             return false;
         }
 
+        $checklist_template = new PluginTregopluginsChecklistTemplate();
+        $task_template = new TaskTemplate();
+        if (
+            !Session::haveAccessToEntity($input['entities_id'])
+            || !$checklist_template->getFromDB($input['checklisttemplates_id'])
+            || !$checklist_template->canViewItem()
+            || !$task_template->getFromDB($input['tasktemplates_id'])
+            || !$task_template->canViewItem()
+        ) {
+            Session::addMessageAfterRedirect(
+                __('Você não tem acesso à entidade ou aos modelos selecionados.', 'tregoplugins'),
+                false,
+                ERROR
+            );
+            return false;
+        }
+
         if ($this->hasIndistinguishableSibling($input)) {
             Session::addMessageAfterRedirect(
                 __('Já existe um vínculo idêntico (mesma entidade, tipo, categoria e prioridade) para este modelo de tarefa.', 'tregoplugins'),
