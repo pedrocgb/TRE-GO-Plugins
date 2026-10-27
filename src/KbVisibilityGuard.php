@@ -25,6 +25,8 @@ class PluginTregopluginsKbVisibilityGuard
      * Front controllers that render KnowbaseItem rows outside of the
      * (safe) per-item canViewItem() path.
      */
+    private const UTF8_HINT = '<?xml encoding="UTF-8">';
+
     private const GUARDED_SCRIPTS = [
         '/front/knowbaseitem.php',
         '/front/helpdesk.faq.php',
@@ -143,7 +145,13 @@ class PluginTregopluginsKbVisibilityGuard
     {
         $dom               = new DOMDocument();
         $previous_setting  = libxml_use_internal_errors(true);
-        $loaded            = $dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        // The encoding hint makes libxml read the response as UTF-8; without
+        // it a fragment with no <meta charset> (ajax/knowbase.php) is parsed
+        // as ISO-8859-1 and every accented character comes back garbled.
+        $loaded            = $dom->loadHTML(
+            self::UTF8_HINT . $html,
+            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+        );
         libxml_clear_errors();
         libxml_use_internal_errors($previous_setting);
 
@@ -180,8 +188,33 @@ class PluginTregopluginsKbVisibilityGuard
             return $html;
         }
 
-        $out = $dom->saveHTML();
-        return $out !== false ? $out : $html;
+        return self::serializeUtf8($dom);
+    }
+
+    /**
+     * $dom->saveHTML() on the whole document re-encodes every non-ASCII
+     * character as an HTML entity, which also corrupts string literals
+     * inside <script> blocks. Serializing node by node keeps raw UTF-8.
+     * The doctype node serializes to '' that way, so it is rebuilt by hand,
+     * and the encoding hint added before loadHTML() is dropped.
+     */
+    private static function serializeUtf8(DOMDocument $dom): string
+    {
+        $out = '';
+        foreach ($dom->childNodes as $node) {
+            if ($node instanceof DOMProcessingInstruction) {
+                continue;
+            }
+            if ($node instanceof DOMDocumentType) {
+                $out .= '<!DOCTYPE ' . $node->name
+                    . ($node->publicId !== '' ? ' PUBLIC "' . $node->publicId . '"' : '')
+                    . ($node->systemId !== '' ? ' "' . $node->systemId . '"' : '')
+                    . ">\n";
+                continue;
+            }
+            $out .= (string) $dom->saveHTML($node);
+        }
+        return $out;
     }
 
     private static function findRemovableAncestor(DOMNode $node): ?DOMNode
