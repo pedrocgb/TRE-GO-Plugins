@@ -30,7 +30,7 @@
  */
 
 /** @phpstan-ignore theCodingMachineSafe.function */
-define('PLUGIN_TREGOPLUGINS_VERSION', '2.5.4');
+define('PLUGIN_TREGOPLUGINS_VERSION', '3.0.0');
 
 /** @phpstan-ignore theCodingMachineSafe.function */
 define('PLUGIN_TREGOPLUGINS_MIN_GLPI_VERSION', '10.0.0');
